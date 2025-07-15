@@ -1,8 +1,6 @@
 package com.cMall.feedShop.review.presentation;
 
 import com.cMall.feedShop.review.application.ReviewService;
-import com.cMall.feedShop.review.application.dto.request.ReviewCreateRequest;
-import com.cMall.feedShop.review.application.dto.response.ReviewCreateResponse;
 import com.cMall.feedShop.review.application.dto.response.ReviewDetailResponse;
 import com.cMall.feedShop.review.domain.entity.SizeFit;
 import com.cMall.feedShop.review.domain.entity.Cushion;
@@ -13,8 +11,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
-import org.springframework.context.annotation.Import;
-import org.springframework.http.MediaType;
+import org.springframework.data.jpa.mapping.JpaMetamodelMappingContext;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
@@ -27,11 +24,8 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-// SecurityConfig를 제외하고 테스트하려면 다음과 같이 설정
-@WebMvcTest(controllers = ReviewController.class,
-        excludeAutoConfiguration = {
-                org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration.class
-        })
+@WebMvcTest(ReviewController.class)
+@MockBean(JpaMetamodelMappingContext.class) // 핵심 수정사항
 @TestPropertySource(locations = "classpath:application-test.properties")
 public class ReviewControllerTest {
 

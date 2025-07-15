@@ -7,6 +7,7 @@ import com.cMall.feedShop.review.domain.entity.SizeFit;
 import com.cMall.feedShop.review.domain.entity.Cushion;
 import com.cMall.feedShop.review.domain.entity.Stability;
 import com.cMall.feedShop.review.domain.repository.ReviewRepository;
+import com.cMall.feedShop.review.domain.repository.ReviewImageRepository; // 추가
 import com.cMall.feedShop.review.application.dto.request.ReviewCreateRequest;
 import com.cMall.feedShop.review.application.dto.request.ReviewUpdateRequest;
 import com.cMall.feedShop.review.application.dto.response.ReviewCreateResponse;
@@ -23,12 +24,16 @@ import static org.mockito.Mockito.*;
 import static org.junit.jupiter.api.Assertions.*;
 import java.util.Optional;
 import java.util.List;
+import java.util.ArrayList;
 
 @ExtendWith(MockitoExtension.class)
 public class ReviewServiceTest {
 
     @Mock
     private ReviewRepository reviewRepository;
+
+    @Mock
+    private ReviewImageRepository reviewImageRepository; // Mock 추가
 
     @InjectMocks
     private ReviewService reviewService;
@@ -66,6 +71,7 @@ public class ReviewServiceTest {
     @DisplayName("Given 5-level shoe characteristics_When create review_Then return detailed response")
     void given5LevelShoeCharacteristics_whenCreateReview_thenReturnDetailedResponse() {
         // given
+        when(reviewRepository.existsByUserIdAndProductIdAndStatusActive(1L, 1L)).thenReturn(false);
         when(reviewRepository.save(any(Review.class))).thenReturn(review);
 
         // when
@@ -106,6 +112,7 @@ public class ReviewServiceTest {
                 .status(ReviewStatus.ACTIVE)
                 .build();
 
+        when(reviewRepository.existsByUserIdAndProductIdAndStatusActive(1L, 2L)).thenReturn(false);
         when(reviewRepository.save(any(Review.class))).thenReturn(extremeReview);
 
         // when
@@ -141,6 +148,9 @@ public class ReviewServiceTest {
         when(reviewRepository.findByProductIdAndSizeFitAndStatus(productId, targetSizeFit, ReviewStatus.ACTIVE))
                 .thenReturn(reviews);
 
+        // ReviewImageRepository Mock 설정 추가
+        when(reviewImageRepository.findByReviewIdOrderByImageOrder(any())).thenReturn(new ArrayList<>());
+
         // when
         List<ReviewDetailResponse> responses = reviewService.getReviewsBySizeFit(productId, targetSizeFit);
 
@@ -170,6 +180,9 @@ public class ReviewServiceTest {
         when(reviewRepository.findByProductIdAndCushioningAndStatus(productId, targetCushioning, ReviewStatus.ACTIVE))
                 .thenReturn(reviews);
 
+        // ReviewImageRepository Mock 설정 추가
+        when(reviewImageRepository.findByReviewIdOrderByImageOrder(any())).thenReturn(new ArrayList<>());
+
         // when
         List<ReviewDetailResponse> responses = reviewService.getReviewsByCushioning(productId, targetCushioning);
 
@@ -186,6 +199,9 @@ public class ReviewServiceTest {
         // given
         Long reviewId = 1L;
         when(reviewRepository.findById(reviewId)).thenReturn(Optional.of(review));
+
+        // ReviewImageRepository Mock 설정 추가
+        when(reviewImageRepository.findByReviewIdOrderByImageOrder(reviewId)).thenReturn(new ArrayList<>());
 
         // when
         ReviewDetailResponse response = reviewService.getReviewDetail(reviewId);
