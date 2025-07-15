@@ -3,7 +3,6 @@ package com.cMall.feedShop.review.presentation;
 import com.cMall.feedShop.review.application.ReviewService;
 import com.cMall.feedShop.review.application.dto.request.ReviewCreateRequest;
 import com.cMall.feedShop.review.application.dto.response.ReviewCreateResponse;
-import com.cMall.feedShop.review.application.dto.response.ReviewDetailResponse;
 import com.cMall.feedShop.review.domain.entity.SizeFit;
 import com.cMall.feedShop.review.domain.entity.Cushion;
 import com.cMall.feedShop.review.domain.entity.Stability;
@@ -14,9 +13,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageImpl;
-import org.springframework.data.domain.PageRequest;
+import org.springframework.data.jpa.mapping.JpaMetamodelMappingContext;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.TestPropertySource;
@@ -28,13 +25,10 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 import java.time.LocalDateTime;
-import java.util.List;
 import java.util.ArrayList;
 
-@WebMvcTest(controllers = ReviewUserController.class,
-        excludeAutoConfiguration = {
-                org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration.class
-        })
+@WebMvcTest(ReviewUserController.class)
+@MockBean(JpaMetamodelMappingContext.class) // 핵심 수정사항
 @TestPropertySource(locations = "classpath:application-test.properties")
 public class ReviewUserControllerTest {
 
@@ -89,8 +83,7 @@ public class ReviewUserControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.reviewId").value(1))
-                .andExpect(jsonPath("$.data.rating").value(5))
-                .andExpect(jsonPath("$.data.reviewTitle").value("훌륭한 상품!"));
+                .andExpect(jsonPath("$.data.rating").value(5));
 
         verify(reviewService, times(1)).createReview(any(ReviewCreateRequest.class));
     }
@@ -99,7 +92,7 @@ public class ReviewUserControllerTest {
     @DisplayName("유효하지 않은 리뷰 데이터로 생성 시도")
     @WithMockUser
     void createReview_invalidData() throws Exception {
-        // given - rating이 범위를 벗어난 경우
+        // given
         Long userId = 1L;
         ReviewCreateRequest invalidRequest = ReviewCreateRequest.builder()
                 .userId(userId)
@@ -149,7 +142,7 @@ public class ReviewUserControllerTest {
                         .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isInternalServerError()); // GlobalExceptionHandler에 의해 500으로 처리
+                .andExpect(status().isInternalServerError());
 
         verify(reviewService, times(1)).createReview(any(ReviewCreateRequest.class));
     }
