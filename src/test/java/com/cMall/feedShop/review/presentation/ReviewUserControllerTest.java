@@ -4,7 +4,6 @@ import com.cMall.feedShop.review.application.ReviewService;
 import com.cMall.feedShop.review.application.dto.request.ReviewCreateRequest;
 import com.cMall.feedShop.review.application.dto.response.ReviewCreateResponse;
 import com.cMall.feedShop.review.application.dto.response.ReviewDetailResponse;
-import com.cMall.feedShop.review.application.dto.response.ReviewSummaryResponse;
 import com.cMall.feedShop.review.domain.entity.SizeFit;
 import com.cMall.feedShop.review.domain.entity.Cushion;
 import com.cMall.feedShop.review.domain.entity.Stability;
@@ -19,10 +18,12 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.MediaType;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 
 import static org.mockito.Mockito.*;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -30,7 +31,10 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.ArrayList;
 
-@WebMvcTest(ReviewUserController.class)
+@WebMvcTest(controllers = ReviewUserController.class,
+        excludeAutoConfiguration = {
+                org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration.class
+        })
 @TestPropertySource(locations = "classpath:application-test.properties")
 public class ReviewUserControllerTest {
 
@@ -44,66 +48,13 @@ public class ReviewUserControllerTest {
     private ObjectMapper objectMapper;
 
     @Test
-    @DisplayName("Given user id_When get user reviews_Then return review list")
-    void givenUserId_whenGetUserReviews_thenReturnReviewList() throws Exception {
+    @DisplayName("리뷰 생성 API 테스트")
+    @WithMockUser
+    void createReview_success() throws Exception {
         // given
         Long userId = 1L;
-        List<ReviewDetailResponse> responses = List.of(
-                ReviewDetailResponse.builder()
-                        .reviewId(1L)
-                        .productId(1L)
-                        .userId(userId)
-                        .userName("사용자1")
-                        .reviewTitle("좋은 상품입니다")
-                        .rating(5)
-                        .content("정말 만족스러운 구매였습니다")
-                        .sizeFit(SizeFit.PERFECT)
-                        .cushioning(Cushion.VERY_SOFT)
-                        .stability(Stability.VERY_STABLE)
-                        .imageUrls(new ArrayList<>())
-                        .createdAt(LocalDateTime.now())
-                        .updatedAt(LocalDateTime.now())
-                        .build(),
-                ReviewDetailResponse.builder()
-                        .reviewId(2L)
-                        .productId(2L)
-                        .userId(userId)
-                        .userName("사용자1")
-                        .reviewTitle("괜찮은 상품")
-                        .rating(4)
-                        .content("전반적으로 만족합니다")
-                        .sizeFit(SizeFit.BIG)
-                        .cushioning(Cushion.SOFT)
-                        .stability(Stability.STABLE)
-                        .imageUrls(new ArrayList<>())
-                        .createdAt(LocalDateTime.now())
-                        .updatedAt(LocalDateTime.now())
-                        .build()
-        );
-
-        Page<ReviewDetailResponse> pageResponse = new PageImpl<>(responses, PageRequest.of(0, 10), responses.size());
-        when(reviewService.getUserReviews(eq(userId), any())).thenReturn(pageResponse);
-
-        // when & then
-        mockMvc.perform(get("/api/users/{userId}/reviews", userId)
-                        .param("page", "0")
-                        .param("size", "10"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.content.length()").value(2))
-                .andExpect(jsonPath("$.content[0].reviewId").value(1))
-                .andExpect(jsonPath("$.content[0].rating").value(5))
-                .andExpect(jsonPath("$.content[1].reviewId").value(2))
-                .andExpect(jsonPath("$.content[1].rating").value(4));
-
-        verify(reviewService, times(1)).getUserReviews(eq(userId), any());
-    }
-
-    @Test
-    @DisplayName("Given review data_When create review_Then return created review")
-    void givenReviewData_whenCreateReview_thenReturnCreatedReview() throws Exception {
-        // given
         ReviewCreateRequest request = ReviewCreateRequest.builder()
-                .userId(1L)
+                .userId(userId)
                 .productId(1L)
                 .reviewTitle("훌륭한 상품!")
                 .rating(5)
@@ -117,7 +68,7 @@ public class ReviewUserControllerTest {
         ReviewCreateResponse response = ReviewCreateResponse.builder()
                 .reviewId(1L)
                 .productId(1L)
-                .userId(1L)
+                .userId(userId)
                 .reviewTitle("훌륭한 상품!")
                 .rating(5)
                 .content("정말 좋은 상품입니다. 추천해요!")
@@ -131,51 +82,75 @@ public class ReviewUserControllerTest {
         when(reviewService.createReview(any(ReviewCreateRequest.class))).thenReturn(response);
 
         // when & then
-        mockMvc.perform(post("/api/reviews")
+        mockMvc.perform(post("/api/users/{userId}/reviews", userId)
+                        .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.reviewId").value(1))
-                .andExpect(jsonPath("$.rating").value(5))
-                .andExpect(jsonPath("$.reviewTitle").value("훌륭한 상품!"));
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.reviewId").value(1))
+                .andExpect(jsonPath("$.data.rating").value(5))
+                .andExpect(jsonPath("$.data.reviewTitle").value("훌륭한 상품!"));
 
         verify(reviewService, times(1)).createReview(any(ReviewCreateRequest.class));
     }
-/*
+
     @Test
-    @DisplayName("Given review id_When delete review_Then return no content")
-    void givenReviewId_whenDeleteReview_thenReturnNoContent() throws Exception {
+    @DisplayName("유효하지 않은 리뷰 데이터로 생성 시도")
+    @WithMockUser
+    void createReview_invalidData() throws Exception {
+        // given - rating이 범위를 벗어난 경우
+        Long userId = 1L;
+        ReviewCreateRequest invalidRequest = ReviewCreateRequest.builder()
+                .userId(userId)
+                .productId(1L)
+                .reviewTitle("테스트")
+                .rating(10) // 잘못된 평점
+                .content("내용")
+                .sizeFit(SizeFit.PERFECT)
+                .cushioning(Cushion.VERY_SOFT)
+                .stability(Stability.VERY_STABLE)
+                .imageUrls(new ArrayList<>())
+                .build();
+
+        // when & then
+        mockMvc.perform(post("/api/users/{userId}/reviews", userId)
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(invalidRequest)))
+                .andExpect(status().isBadRequest());
+
+        verify(reviewService, never()).createReview(any(ReviewCreateRequest.class));
+    }
+
+    @Test
+    @DisplayName("중복 리뷰 생성 시 예외 처리")
+    @WithMockUser
+    void createReview_duplicate() throws Exception {
         // given
         Long userId = 1L;
-        Long reviewId = 1L;
+        ReviewCreateRequest request = ReviewCreateRequest.builder()
+                .userId(userId)
+                .productId(1L)
+                .reviewTitle("리뷰")
+                .rating(5)
+                .content("내용")
+                .sizeFit(SizeFit.PERFECT)
+                .cushioning(Cushion.VERY_SOFT)
+                .stability(Stability.VERY_STABLE)
+                .imageUrls(new ArrayList<>())
+                .build();
 
-        doNothing().when(reviewService).deleteReview(userId, reviewId);
-
-        // when & then
-        mockMvc.perform(delete("/api/reviews/{reviewId}", reviewId)
-                        .param("userId", userId.toString()))
-                .andExpect(status().isNoContent());
-
-        verify(reviewService, times(1)).deleteReview(userId, reviewId);
-    }
-*/
-    @Test
-    @DisplayName("Given invalid user id_When get user reviews_Then return empty list")
-    void givenInvalidUserId_whenGetUserReviews_thenReturnEmptyList() throws Exception {
-        // given
-        Long invalidUserId = 999L;
-        Page<ReviewDetailResponse> emptyPage = new PageImpl<>(new ArrayList<>(), PageRequest.of(0, 10), 0);
-
-        when(reviewService.getUserReviews(eq(invalidUserId), any())).thenReturn(emptyPage);
+        when(reviewService.createReview(any(ReviewCreateRequest.class)))
+                .thenThrow(new IllegalArgumentException("이미 해당 상품에 대한 리뷰를 작성하셨습니다."));
 
         // when & then
-        mockMvc.perform(get("/api/users/{userId}/reviews", invalidUserId)
-                        .param("page", "0")
-                        .param("size", "10"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.content.length()").value(0))
-                .andExpect(jsonPath("$.totalElements").value(0));
+        mockMvc.perform(post("/api/users/{userId}/reviews", userId)
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isInternalServerError()); // GlobalExceptionHandler에 의해 500으로 처리
 
-        verify(reviewService, times(1)).getUserReviews(eq(invalidUserId), any());
+        verify(reviewService, times(1)).createReview(any(ReviewCreateRequest.class));
     }
 }

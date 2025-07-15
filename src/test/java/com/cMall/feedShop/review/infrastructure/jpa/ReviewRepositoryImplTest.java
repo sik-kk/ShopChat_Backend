@@ -7,14 +7,15 @@ import com.cMall.feedShop.review.domain.entity.Stability;
 import com.cMall.feedShop.review.domain.entity.ReviewStatus;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.DisplayName;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.boot.test.autoconfigure.orm.jpa.TestEntityManager;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.test.context.ActiveProfiles;
 import static org.junit.jupiter.api.Assertions.*;
 import java.util.List;
-import java.util.Optional;
 
 @DataJpaTest
+@ActiveProfiles("test")
 class ReviewRepositoryImplTest {
 
     @Autowired
@@ -41,14 +42,16 @@ class ReviewRepositoryImplTest {
         // when
         Review savedReview = reviewJpaRepository.save(extremeReview);
         entityManager.flush();
+        entityManager.clear();
 
         // then
-        assertNotNull(savedReview.getId());
-        assertEquals(SizeFit.VERY_SMALL, savedReview.getSizeFit());
-        assertEquals(Cushion.VERY_FIRM, savedReview.getCushioning());
-        assertEquals(Stability.VERY_UNSTABLE, savedReview.getStability());
+        Review foundReview = reviewJpaRepository.findById(savedReview.getReviewId()).orElse(null);
+        assertNotNull(foundReview);
+        assertEquals(SizeFit.VERY_SMALL, foundReview.getSizeFit());
+        assertEquals(Cushion.VERY_FIRM, foundReview.getCushioning());
+        assertEquals(Stability.VERY_UNSTABLE, foundReview.getStability());
     }
-/*
+
     @Test
     @DisplayName("Given various size fit levels_When find by each level_Then return accurate filtering")
     void givenVariousSizeFitLevels_whenFindByEachLevel_thenReturnAccurateFiltering() {
@@ -59,6 +62,7 @@ class ReviewRepositoryImplTest {
         createShoeReviewWithSizeFit("딱 맞는 신발", productId, SizeFit.PERFECT);
         createShoeReviewWithSizeFit("큰 신발", productId, SizeFit.BIG);
         createShoeReviewWithSizeFit("매우 큰 신발", productId, SizeFit.VERY_BIG);
+        entityManager.flush();
 
         // when & then - 각 레벨별로 정확히 조회되는지 확인
         List<Review> verySmallReviews = reviewJpaRepository.findByProductIdAndSizeFitAndStatus(
@@ -85,6 +89,7 @@ class ReviewRepositoryImplTest {
         createShoeReviewWithCushioning("구름같은 쿠션", productId, Cushion.VERY_SOFT);
         createShoeReviewWithCushioning("바위같은 쿠션", productId, Cushion.VERY_FIRM);
         createShoeReviewWithCushioning("적당한 쿠션", productId, Cushion.NORMAL);
+        entityManager.flush();
 
         // when & then - 매우 부드러운 쿠션만 조회
         List<Review> verySoftReviews = reviewJpaRepository.findByProductIdAndCushioningAndStatus(
@@ -107,6 +112,7 @@ class ReviewRepositoryImplTest {
         createShoeReviewWithStability("발목 완전 고정", productId, Stability.VERY_STABLE);
         createShoeReviewWithStability("발목 완전 불안", productId, Stability.VERY_UNSTABLE);
         createShoeReviewWithStability("보통 지지력", productId, Stability.NORMAL);
+        entityManager.flush();
 
         // when & then - 매우 안정적인 것만 조회
         List<Review> veryStableReviews = reviewJpaRepository.findByProductIdAndStabilityAndStatus(
@@ -120,7 +126,51 @@ class ReviewRepositoryImplTest {
         assertEquals(1, veryUnstableReviews.size());
         assertTrue(veryUnstableReviews.get(0).getContent().contains("완전 불안"));
     }
-*/
+
+    @Test
+    @DisplayName("Given product reviews_When find average rating_Then return correct calculation")
+    void givenProductReviews_whenFindAverageRating_thenReturnCorrectCalculation() {
+        // given
+        Long productId = 1L;
+        createReviewWithRating(productId, 5);
+        createReviewWithRating(productId, 4);
+        createReviewWithRating(productId, 3);
+        entityManager.flush();
+
+        // when
+        Double averageRating = reviewJpaRepository.findAverageRatingByProductId(productId);
+
+        // then
+        assertNotNull(averageRating);
+        assertEquals(4.0, averageRating, 0.1);
+    }
+
+    @Test
+    @DisplayName("Given product reviews_When count by rating_Then return correct counts")
+    void givenProductReviews_whenCountByRating_thenReturnCorrectCounts() {
+        // given
+        Long productId = 1L;
+        createReviewWithRating(productId, 5);
+        createReviewWithRating(productId, 5);
+        createReviewWithRating(productId, 4);
+        createReviewWithRating(productId, 3);
+        entityManager.flush();
+
+        // when & then
+        Long fiveStarCount = reviewJpaRepository.countByProductIdAndStatusAndRating(
+                productId, ReviewStatus.ACTIVE, 5);
+        assertEquals(2L, fiveStarCount);
+
+        Long fourStarCount = reviewJpaRepository.countByProductIdAndStatusAndRating(
+                productId, ReviewStatus.ACTIVE, 4);
+        assertEquals(1L, fourStarCount);
+
+        Long threeStarCount = reviewJpaRepository.countByProductIdAndStatusAndRating(
+                productId, ReviewStatus.ACTIVE, 3);
+        assertEquals(1L, threeStarCount);
+    }
+
+    // 헬퍼 메서드들
     private Review createShoeReviewWithSizeFit(String content, Long productId, SizeFit sizeFit) {
         Review review = Review.builder()
                 .content(content)
@@ -158,6 +208,20 @@ class ReviewRepositoryImplTest {
                 .sizeFit(SizeFit.PERFECT)
                 .cushioning(Cushion.NORMAL)
                 .stability(stability)
+                .status(ReviewStatus.ACTIVE)
+                .build();
+        return reviewJpaRepository.save(review);
+    }
+
+    private Review createReviewWithRating(Long productId, Integer rating) {
+        Review review = Review.builder()
+                .content("평점 " + rating + "점 리뷰")
+                .rating(rating)
+                .userId(1L)
+                .productId(productId)
+                .sizeFit(SizeFit.PERFECT)
+                .cushioning(Cushion.NORMAL)
+                .stability(Stability.NORMAL)
                 .status(ReviewStatus.ACTIVE)
                 .build();
         return reviewJpaRepository.save(review);

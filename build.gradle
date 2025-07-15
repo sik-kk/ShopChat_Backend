@@ -54,6 +54,18 @@ dependencies {
 
 	implementation  'com.google.cloud.sql:mysql-socket-factory-connector-j-8:1.15.0'
 
+	// MockMvc 및 Spring Test 지원
+	testImplementation 'org.springframework:spring-test'
+	testImplementation 'org.springframework.boot:spring-boot-test-autoconfigure'
+
+	// 추가적인 테스트 유틸리티
+	testImplementation 'org.mockito:mockito-core'
+	testImplementation 'org.mockito:mockito-junit-jupiter'
+	testImplementation 'org.junit.jupiter:junit-jupiter-api'
+	testImplementation 'org.junit.jupiter:junit-jupiter-engine'
+	testImplementation 'org.assertj:assertj-core'
+
+
 }
 
 tasks.named('test') {
