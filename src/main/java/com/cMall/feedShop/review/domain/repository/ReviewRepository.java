@@ -19,6 +19,7 @@ import java.util.Optional;
  * 리뷰 도메인 Repository 인터페이스
  * 순수한 도메인 개념 - 기술에 의존하지 않음
  */
+@Repository
 public interface ReviewRepository extends JpaRepository<Review, Long> {
 
     /**
@@ -40,6 +41,7 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
      * 모든 리뷰 조회 (관리자용)
      */
     Page<Review> findAll(Pageable pageable);
+
     /**
      * 상품별 활성 리뷰 목록 조회 (페이징)
      */
@@ -93,18 +95,24 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
     Double findAverageRatingByStability(@Param("stability") Stability stability, @Param("status") ReviewStatus status);
 
     /**
-     * 특정 조건으로 리뷰 필터링 조회
+     * 특정 조건으로 리뷰 필터링 조회 - 사이즈 핏별
      */
     @Query("SELECT r FROM Review r WHERE r.productId = :productId AND r.sizeFit = :sizeFit AND r.status = :status")
     List<Review> findByProductIdAndSizeFitAndStatus(@Param("productId") Long productId,
                                                     @Param("sizeFit") SizeFit sizeFit,
                                                     @Param("status") ReviewStatus status);
 
+    /**
+     * 특정 조건으로 리뷰 필터링 조회 - 쿠셔닝별
+     */
     @Query("SELECT r FROM Review r WHERE r.productId = :productId AND r.cushioning = :cushioning AND r.status = :status")
     List<Review> findByProductIdAndCushioningAndStatus(@Param("productId") Long productId,
                                                        @Param("cushioning") Cushion cushioning,
                                                        @Param("status") ReviewStatus status);
 
+    /**
+     * 특정 조건으로 리뷰 필터링 조회 - 안정성별
+     */
     @Query("SELECT r FROM Review r WHERE r.productId = :productId AND r.stability = :stability AND r.status = :status")
     List<Review> findByProductIdAndStabilityAndStatus(@Param("productId") Long productId,
                                                       @Param("stability") Stability stability,

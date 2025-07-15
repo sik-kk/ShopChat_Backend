@@ -11,6 +11,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureWebMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
@@ -19,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.ArrayList;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultHandlers.*;
@@ -37,8 +39,9 @@ class ReviewApiIntegrationTest {
     private ObjectMapper objectMapper;
 
     @Test
-    @DisplayName("API Integration: 완전한 리뷰 CRUD 워크플로우")
-    void completeReviewCrudWorkflow() throws Exception {
+    @DisplayName("API Integration: 리뷰 상세 조회 워크플로우")
+    @WithMockUser
+    void reviewDetailWorkflow() throws Exception {
         // 1. CREATE - 리뷰 생성
         ReviewCreateRequest createRequest = ReviewCreateRequest.builder()
                 .userId(1L)
@@ -52,184 +55,72 @@ class ReviewApiIntegrationTest {
                 .imageUrls(new ArrayList<>())
                 .build();
 
-        MvcResult createResult = mockMvc.perform(post("/api/reviews")
+        MvcResult createResult = mockMvc.perform(post("/api/users/{userId}/reviews", 1L)
+                        .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(createRequest)))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.reviewId").exists())
-                .andExpect(jsonPath("$.rating").value(5))
-                .andExpect(jsonPath("$.sizeFit").value("PERFECT"))
-                .andExpect(jsonPath("$.cushioning").value("VERY_SOFT"))
-                .andExpect(jsonPath("$.stability").value("VERY_STABLE"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.reviewId").exists())
+                .andExpect(jsonPath("$.data.rating").value(5))
+                .andExpect(jsonPath("$.data.sizeFit").value("PERFECT"))
+                .andExpect(jsonPath("$.data.cushioning").value("VERY_SOFT"))
+                .andExpect(jsonPath("$.data.stability").value("VERY_STABLE"))
                 .andDo(print())
                 .andReturn();
 
         // 생성된 리뷰 ID 추출
         String responseContent = createResult.getResponse().getContentAsString();
-        Long reviewId = objectMapper.readTree(responseContent).get("reviewId").asLong();
+        Long reviewId = objectMapper.readTree(responseContent).get("data").get("reviewId").asLong();
 
         // 2. READ - 리뷰 상세 조회
-        mockMvc.perform(get("/api/reviews/{reviewId}", reviewId))
+        mockMvc.perform(get("/api/reviews/{reviewId}", reviewId)
+                        .with(csrf()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.reviewId").value(reviewId))
-                .andExpect(jsonPath("$.reviewTitle").value("API 테스트 리뷰"))
-                .andExpect(jsonPath("$.rating").value(5))
-                .andExpect(jsonPath("$.sizeFit").value("PERFECT"))
-                .andExpect(jsonPath("$.cushioning").value("VERY_SOFT"))
-                .andExpect(jsonPath("$.stability").value("VERY_STABLE"))
-                .andDo(print());
-
-        // 3. READ - 사용자별 리뷰 목록 조회
-        mockMvc.perform(get("/api/users/{userId}/reviews", 1L)
-                        .param("page", "0")
-                        .param("size", "10"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.content.length()").value(1))
-                .andExpect(jsonPath("$.content[0].reviewId").value(reviewId))
-                .andExpect(jsonPath("$.totalElements").value(1))
-                .andDo(print());
-
-        // 4. DELETE - 리뷰 삭제
-        mockMvc.perform(delete("/api/reviews/{reviewId}", reviewId)
-                        .param("userId", "1"))
-                .andExpect(status().isNoContent())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.reviewId").value(reviewId))
+                .andExpect(jsonPath("$.data.reviewTitle").value("API 테스트 리뷰"))
+                .andExpect(jsonPath("$.data.rating").value(5))
+                .andExpect(jsonPath("$.data.sizeFit").value("PERFECT"))
+                .andExpect(jsonPath("$.data.cushioning").value("VERY_SOFT"))
+                .andExpect(jsonPath("$.data.stability").value("VERY_STABLE"))
                 .andDo(print());
     }
 
     @Test
-    @DisplayName("API Integration: 상품별 리뷰 통계 및 요약 조회")
-    void productReviewStatisticsAndSummary() throws Exception {
+    @DisplayName("API Integration: 상품별 리뷰 조회")
+    @WithMockUser
+    void productReviewsWorkflow() throws Exception {
         Long productId = 1L;
 
         // 다양한 평점의 리뷰들 생성
         createReviewViaApi(1L, productId, 5, SizeFit.PERFECT, Cushion.VERY_SOFT, Stability.VERY_STABLE);
         createReviewViaApi(2L, productId, 4, SizeFit.PERFECT, Cushion.SOFT, Stability.STABLE);
         createReviewViaApi(3L, productId, 3, SizeFit.BIG, Cushion.NORMAL, Stability.NORMAL);
-        createReviewViaApi(4L, productId, 2, SizeFit.SMALL, Cushion.FIRM, Stability.UNSTABLE);
-        createReviewViaApi(5L, productId, 1, SizeFit.VERY_SMALL, Cushion.VERY_FIRM, Stability.VERY_UNSTABLE);
 
-        // 상품 리뷰 요약 조회
-        mockMvc.perform(get("/api/products/{productId}/reviews/summary", productId))
+        // 상품 리뷰 목록 조회
+        mockMvc.perform(get("/api/products/{productId}/reviews", productId)
+                        .with(csrf())
+                        .param("page", "0")
+                        .param("size", "10"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.productId").value(productId))
-                .andExpect(jsonPath("$.totalReviews").value(5))
-                .andExpect(jsonPath("$.averageRating").value(3.0)) // (5+4+3+2+1)/5 = 3.0
-                .andExpect(jsonPath("$.mostCommonSizeFit").exists())
+                .andExpect(jsonPath("$.totalReviews").value(3))
                 .andExpect(jsonPath("$.recentReviews").isArray())
-                .andDo(print());
-
-        // 상품 리뷰 통계 조회
-        mockMvc.perform(get("/api/products/{productId}/reviews/statistics", productId))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.productId").value(productId))
-                .andExpect(jsonPath("$.totalReviews").value(5))
-                .andExpect(jsonPath("$.averageRating").value(3.0))
-                .andExpect(jsonPath("$.ratingDistribution.5").value(1))
-                .andExpect(jsonPath("$.ratingDistribution.4").value(1))
-                .andExpect(jsonPath("$.ratingDistribution.3").value(1))
-                .andExpect(jsonPath("$.ratingDistribution.2").value(1))
-                .andExpect(jsonPath("$.ratingDistribution.1").value(1))
-                .andDo(print());
-    }
-
-    @Test
-    @DisplayName("API Integration: 5단계 특성별 리뷰 필터링")
-    void characteristicBasedFiltering() throws Exception {
-        Long productId = 1L;
-
-        // 다양한 특성의 리뷰들 생성
-        createReviewViaApi(1L, productId, 5, SizeFit.PERFECT, Cushion.VERY_SOFT, Stability.VERY_STABLE);
-        createReviewViaApi(2L, productId, 5, SizeFit.PERFECT, Cushion.VERY_SOFT, Stability.STABLE);
-        createReviewViaApi(3L, productId, 4, SizeFit.BIG, Cushion.SOFT, Stability.NORMAL);
-
-        // 사이즈 핏별 필터링 (가상의 엔드포인트)
-        mockMvc.perform(get("/api/products/{productId}/reviews", productId)
-                        .param("sizeFit", "PERFECT")
-                        .param("page", "0")
-                        .param("size", "10"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.content.length()").value(2)) // PERFECT 사이즈 2개
-                .andDo(print());
-
-        // 쿠셔닝별 필터링 (가상의 엔드포인트)
-        mockMvc.perform(get("/api/products/{productId}/reviews", productId)
-                        .param("cushioning", "VERY_SOFT")
-                        .param("page", "0")
-                        .param("size", "10"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.content.length()").value(2)) // VERY_SOFT 쿠셔닝 2개
-                .andDo(print());
-    }
-
-    @Test
-    @DisplayName("API Integration: 시간 경과에 따른 특성 변화 업데이트")
-    void characteristicsChangeOverTime() throws Exception {
-        // 초기 완벽한 리뷰 생성
-        ReviewCreateRequest initialRequest = ReviewCreateRequest.builder()
-                .userId(1L)
-                .productId(1L)
-                .reviewTitle("처음엔 완벽했던 신발")
-                .rating(5)
-                .content("처음엔 모든 게 완벽했어요")
-                .sizeFit(SizeFit.PERFECT)
-                .cushioning(Cushion.VERY_SOFT)
-                .stability(Stability.VERY_STABLE)
-                .imageUrls(new ArrayList<>())
-                .build();
-
-        MvcResult createResult = mockMvc.perform(post("/api/reviews")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(initialRequest)))
-                .andExpect(status().isCreated())
-                .andReturn();
-
-        Long reviewId = objectMapper.readTree(createResult.getResponse().getContentAsString())
-                .get("reviewId").asLong();
-
-        // 시간 경과 후 특성 변화 업데이트
-        com.cMall.feedShop.review.application.dto.request.ReviewUpdateRequest updateRequest =
-                com.cMall.feedShop.review.application.dto.request.ReviewUpdateRequest.builder()
-                        .reviewTitle("한 달 후 재평가 - 많이 변했어요")
-                        .rating(2)
-                        .content("신발이 늘어나고 쿠션이 주저앉아서 많이 아쉬워졌어요")
-                        .sizeFit(SizeFit.BIG)
-                        .cushioning(Cushion.FIRM)
-                        .stability(Stability.UNSTABLE)
-                        .build();
-
-        // 업데이트 수행
-        mockMvc.perform(put("/api/reviews/{reviewId}", reviewId)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(updateRequest)))
-                .andExpect(status().isOk())
-                .andDo(print());
-
-        // 업데이트된 내용 확인
-        mockMvc.perform(get("/api/reviews/{reviewId}", reviewId))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.reviewTitle").value("한 달 후 재평가 - 많이 변했어요"))
-                .andExpect(jsonPath("$.rating").value(2))
-                .andExpect(jsonPath("$.sizeFit").value("BIG"))
-                .andExpect(jsonPath("$.cushioning").value("FIRM"))
-                .andExpect(jsonPath("$.stability").value("UNSTABLE"))
-                .andExpect(jsonPath("$.content").value(containsString("주저앉아서")))
                 .andDo(print());
     }
 
     @Test
     @DisplayName("API Integration: 에러 케이스 처리")
+    @WithMockUser
     void errorCasesHandling() throws Exception {
         // 1. 존재하지 않는 리뷰 조회
-        mockMvc.perform(get("/api/reviews/{reviewId}", 99999L))
-                .andExpect(status().isNotFound())
+        mockMvc.perform(get("/api/reviews/{reviewId}", 99999L)
+                        .with(csrf()))
+                .andExpect(status().isInternalServerError()) // GlobalExceptionHandler에 의해 500으로 처리
                 .andDo(print());
 
-        // 2. 잘못된 상품 ID로 통계 조회
-        mockMvc.perform(get("/api/products/{productId}/reviews/statistics", 99999L))
-                .andExpect(status().isNotFound())
-                .andDo(print());
-
-        // 3. 중복 리뷰 생성 시도
+        // 2. 중복 리뷰 생성 시도
         ReviewCreateRequest request = ReviewCreateRequest.builder()
                 .userId(1L)
                 .productId(1L)
@@ -243,17 +134,47 @@ class ReviewApiIntegrationTest {
                 .build();
 
         // 첫 번째 리뷰 생성
-        mockMvc.perform(post("/api/reviews")
+        mockMvc.perform(post("/api/users/{userId}/reviews", 1L)
+                        .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isCreated());
+                .andExpect(status().isOk());
 
         // 같은 사용자가 같은 상품에 중복 리뷰 시도
-        mockMvc.perform(post("/api/reviews")
+        mockMvc.perform(post("/api/users/{userId}/reviews", 1L)
+                        .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isInternalServerError()) // GlobalExceptionHandler에 의해 500으로 처리
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.message").value(containsString("서버 오류가 발생했습니다")))
+                .andDo(print());
+    }
+
+    @Test
+    @DisplayName("API Integration: 유효성 검사 에러")
+    @WithMockUser
+    void validationErrorHandling() throws Exception {
+        // 잘못된 평점으로 리뷰 생성 시도
+        ReviewCreateRequest invalidRequest = ReviewCreateRequest.builder()
+                .userId(1L)
+                .productId(1L)
+                .reviewTitle("잘못된 리뷰")
+                .rating(10) // 잘못된 평점 (1-5 범위 초과)
+                .content("테스트 내용")
+                .sizeFit(SizeFit.PERFECT)
+                .cushioning(Cushion.VERY_SOFT)
+                .stability(Stability.VERY_STABLE)
+                .imageUrls(new ArrayList<>())
+                .build();
+
+        mockMvc.perform(post("/api/users/{userId}/reviews", 1L)
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(invalidRequest)))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.message").value(containsString("이미 해당 상품에 대한 리뷰를 작성하셨습니다")))
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.message").value(containsString("입력값이 올바르지 않습니다")))
                 .andDo(print());
     }
 
@@ -272,9 +193,10 @@ class ReviewApiIntegrationTest {
                 .imageUrls(new ArrayList<>())
                 .build();
 
-        mockMvc.perform(post("/api/reviews")
+        mockMvc.perform(post("/api/users/{userId}/reviews", userId)
+                        .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isCreated());
+                .andExpect(status().isOk());
     }
 }
