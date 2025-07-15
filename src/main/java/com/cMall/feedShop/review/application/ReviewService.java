@@ -1,12 +1,14 @@
 package com.cMall.feedShop.review.application;
 
-import com.cMall.feedShop.common.exception.BusinessException;
-import com.cMall.feedShop.common.exception.ErrorCode;
-import com.cMall.feedShop.review.application.dto.request.ReviewRequest;
-import com.cMall.feedShop.review.application.dto.response.ReviewResponse;
-import com.cMall.feedShop.review.domain.Review;
-import com.cMall.feedShop.review.domain.Review.ReviewStatus;
+import com.cMall.feedShop.review.application.dto.request.ReviewCreateRequest;
+import com.cMall.feedShop.review.application.dto.request.ReviewUpdateRequest;
+import com.cMall.feedShop.review.application.dto.response.ReviewCreateResponse;
+import com.cMall.feedShop.review.application.dto.response.ReviewDetailResponse;
+import com.cMall.feedShop.review.application.dto.response.ReviewSummaryResponse;
+import com.cMall.feedShop.review.application.dto.response.ProductReviewSummaryResponse;
+import com.cMall.feedShop.review.domain.entity.*;
 import com.cMall.feedShop.review.domain.repository.ReviewRepository;
+import com.cMall.feedShop.review.domain.repository.ReviewImageRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -14,158 +16,231 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
+import java.util.stream.Collectors;
+import java.util.ArrayList;
+
 @Service
 @RequiredArgsConstructor
-@Slf4j
 @Transactional(readOnly = true)
+@Slf4j
 public class ReviewService {
-    
+
     private final ReviewRepository reviewRepository;
-    
-    /**
-     * 리뷰 생성
-     */
+    private final ReviewImageRepository reviewImageRepository;
+
     @Transactional
-    public ReviewResponse createReview(ReviewRequest request) {
-        log.info("리뷰 생성 요청 - 사용자: {}, 상품: {}", request.getUserId(), request.getProductId());
-        
-        // 중복 리뷰 확인
-        if (reviewRepository.existsByUserIdAndProductIdAndStatus(
-                request.getUserId(), request.getProductId(), ReviewStatus.ACTIVE)) {
-            throw new BusinessException(ErrorCode.REVIEW_ALREADY_EXISTS);
+    public ReviewCreateResponse createReview(ReviewCreateRequest request) {
+        // 1. 이미 리뷰를 작성했는지 확인
+        if (reviewRepository.existsByUserIdAndProductIdAndStatusActive(request.getUserId(), request.getProductId())) {
+            throw new IllegalArgumentException("이미 해당 상품에 대한 리뷰를 작성하셨습니다.");
         }
-        
-        // 리뷰 생성
-        Review review = request.toEntity();
+
+        // 2. 리뷰 엔티티 생성 (모두 enum 사용)
+        Review review = Review.builder()
+                .userId(request.getUserId())
+                .productId(request.getProductId())
+                .reviewTitle(request.getReviewTitle())
+                .rating(request.getRating())
+                .content(request.getContent())
+                .sizeFit(request.getSizeFit())      // enum 그대로
+                .cushioning(request.getCushioning()) // enum 그대로
+                .stability(request.getStability())   // enum 그대로
+                .status(ReviewStatus.ACTIVE)
+                .build();
+
+        // 3. 리뷰 저장
         Review savedReview = reviewRepository.save(review);
-        
-        log.info("리뷰 생성 완료 - ID: {}", savedReview.getReviewId());
-        return ReviewResponse.from(savedReview);
-    }
-    
-    /**
-     * 리뷰 수정
-     */
-    @Transactional
-    public ReviewResponse updateReview(Long reviewId, ReviewRequest request) {
-        log.info("리뷰 수정 요청 - ID: {}, 사용자: {}", reviewId, request.getUserId());
-        
-        Review review = reviewRepository.findActiveReviewByReviewId(reviewId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.REVIEW_NOT_FOUND));
-        
-        // 작성자 확인
-        if (!review.isOwnedBy(request.getUserId())) {
-            throw new BusinessException(ErrorCode.REVIEW_ACCESS_DENIED);
+
+        // 4. 이미지가 있다면 저장
+        List<String> imageUrls = request.getImageUrls();
+        if (imageUrls != null && !imageUrls.isEmpty()) {
+            for (int i = 0; i < imageUrls.size(); i++) {
+                ReviewImage reviewImage = ReviewImage.builder()
+                        .reviewId(savedReview.getReviewId())
+                        .imageUrl(imageUrls.get(i))
+                        .imageOrder(i + 1)
+                        .build();
+                reviewImageRepository.save(reviewImage);
+            }
         }
-        
-        // 리뷰 수정
-        review.updateTitle(request.getReviewTitle());
-        review.updateContent(request.getContent());
-        review.updateRating(request.getRating());
-        
-        log.info("리뷰 수정 완료 - ID: {}", reviewId);
-        return ReviewResponse.from(review);
+
+        // 5. 응답 객체 생성 (모두 enum 그대로)
+        return ReviewCreateResponse.builder()
+                .reviewId(savedReview.getReviewId())
+                .productId(savedReview.getProductId())
+                .userId(savedReview.getUserId())
+                .reviewTitle(savedReview.getReviewTitle())
+                .rating(savedReview.getRating())
+                .content(savedReview.getContent())
+                .sizeFit(savedReview.getSizeFit())      // enum 그대로
+                .cushioning(savedReview.getCushioning()) // enum 그대로
+                .stability(savedReview.getStability())   // enum 그대로
+                .imageUrls(imageUrls)
+                .createdAt(savedReview.getCreatedAt())
+                .build();
     }
-    
-    /**
-     * 리뷰 삭제 (논리삭제)
-     */
+
+    public ProductReviewSummaryResponse getProductReviews(Long productId, Pageable pageable) {
+        // 1. 상품의 리뷰 목록 조회
+        Page<Review> reviewPage = reviewRepository.findByProductIdAndStatus(productId, ReviewStatus.ACTIVE, pageable);
+
+        // 2. 평균 평점 조회
+        Double averageRating = reviewRepository.findAverageRatingByProductId(productId);
+
+        // 3. 총 리뷰 수 조회
+        Long totalReviewCount = reviewRepository.countByProductIdAndStatus(productId, ReviewStatus.ACTIVE);
+
+        // 4. 최근 리뷰들을 기존 ReviewSummaryResponse로 변환
+        List<ReviewSummaryResponse> recentReviews = reviewPage.getContent().stream()
+                .map(this::convertToSummaryResponse)
+                .collect(Collectors.toList());
+
+        // 5. 평점 분포 계산 (간단한 버전)
+        ProductReviewSummaryResponse.RatingDistribution ratingDistribution = ProductReviewSummaryResponse.RatingDistribution.builder()
+                .fiveStar(0L)
+                .fourStar(0L)
+                .threeStar(0L)
+                .twoStar(0L)
+                .oneStar(0L)
+                .build();
+
+        return ProductReviewSummaryResponse.builder()
+                .productId(productId)
+                .totalReviews(totalReviewCount)
+                .averageRating(averageRating != null ? averageRating : 0.0)
+                .ratingDistribution(ratingDistribution)
+                .mostCommonSizeFit("보통") // 임시값
+                .recentReviews(recentReviews)
+                .build();
+    }
+
+    public ReviewDetailResponse getReviewDetail(Long reviewId) {
+        Review review = reviewRepository.findById(reviewId)
+                .orElseThrow(() -> new IllegalArgumentException("리뷰를 찾을 수 없습니다."));
+
+        return convertToDetailResponse(review);
+    }
+
+    public Page<ReviewDetailResponse> getUserReviews(Long userId, Pageable pageable) {
+        Page<Review> reviewPage = reviewRepository.findByUserIdAndStatus(userId, ReviewStatus.ACTIVE, pageable);
+
+        return reviewPage.map(this::convertToDetailResponse);
+    }
+
     @Transactional
-    public void deleteReview(Long reviewId, Long userId) {
-        log.info("리뷰 삭제 요청 - ID: {}, 사용자: {}", reviewId, userId);
-        
-        Review review = reviewRepository.findActiveReviewByReviewId(reviewId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.REVIEW_NOT_FOUND));
-        
-        // 작성자 확인
-        if (!review.isOwnedBy(userId)) {
-            throw new BusinessException(ErrorCode.REVIEW_ACCESS_DENIED);
+    public void updateReview(Long reviewId, ReviewUpdateRequest request) {
+        // 1. 리뷰 조회
+        Review review = reviewRepository.findById(reviewId)
+                .orElseThrow(() -> new IllegalArgumentException("리뷰를 찾을 수 없습니다."));
+
+        // 2. 리뷰 업데이트
+        if (request.getReviewTitle() != null) {
+            review.updateTitle(request.getReviewTitle());
         }
-        
-        review.delete();
-        log.info("리뷰 삭제 완료 - ID: {}", reviewId);
-    }
-    
-    /**
-     * 리뷰 비활성화
-     */
-    @Transactional
-    public void deactivateReview(Long reviewId, Long userId) {
-        log.info("리뷰 비활성화 요청 - ID: {}, 사용자: {}", reviewId, userId);
-        
-        Review review = reviewRepository.findActiveReviewByReviewId(reviewId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.REVIEW_NOT_FOUND));
-        
-        // 작성자 확인
-        if (!review.isOwnedBy(userId)) {
-            throw new BusinessException(ErrorCode.REVIEW_ACCESS_DENIED);
+
+        if (request.getContent() != null) {
+            review.updateContent(request.getContent());
         }
-        
-        review.deactivate();
-        log.info("리뷰 비활성화 완료 - ID: {}", reviewId);
+
+        if (request.getRating() != null) {
+            review.updateRating(request.getRating());
+        }
+
+        if (request.getSizeFit() != null) {
+            review.updateSizeFit(request.getSizeFit());
+        }
+
+        if (request.getCushioning() != null) {
+            review.updateCushioning(request.getCushioning());
+        }
+
+        if (request.getStability() != null) {
+            review.updateStability(request.getStability());
+        }
+
+        // 3. 저장
+        reviewRepository.save(review);
     }
-    
+
+    private ReviewDetailResponse convertToDetailResponse(Review review) {
+        // 리뷰의 이미지들 조회
+        List<ReviewImage> images = reviewImageRepository.findByReviewIdOrderByImageOrder(review.getReviewId());
+        List<String> imageUrls = images.stream()
+                .map(ReviewImage::getImageUrl)
+                .collect(Collectors.toList());
+
+        return ReviewDetailResponse.builder()
+                .reviewId(review.getReviewId())
+                .productId(review.getProductId())
+                .userId(review.getUserId())
+                .userName("사용자" + review.getUserId()) // 실제로는 User 엔티티에서 조회
+                .reviewTitle(review.getReviewTitle())
+                .rating(review.getRating())
+                .content(review.getContent())
+                .sizeFit(review.getSizeFit())      // enum 그대로
+                .cushioning(review.getCushioning()) // enum 그대로
+                .stability(review.getStability())   // enum 그대로
+                .imageUrls(imageUrls)
+                .createdAt(review.getCreatedAt())
+                .updatedAt(review.getUpdatedAt())
+                .build();
+    }
+
+    private ReviewSummaryResponse convertToSummaryResponse(Review review) {
+        return ReviewSummaryResponse.builder()
+                .reviewId(review.getReviewId())
+                .userId(review.getUserId())
+                .productId(review.getProductId())
+                .reviewTitle(review.getReviewTitle())
+                .content(review.getContent())
+                .rating(review.getRating())
+                .sizeFit(review.getSizeFit())      // enum 그대로
+                .cushioning(review.getCushioning()) // enum 그대로
+                .stability(review.getStability())   // enum 그대로
+                .createdAt(review.getCreatedAt())
+                .images(new ArrayList<>()) // 빈 리스트로 초기화
+                .build();
+    }
+
     /**
-     * 리뷰 단건 조회
+     * 특정 상품의 사이즈 핏별 리뷰 조회
      */
-    public ReviewResponse getReview(Long reviewId) {
-        Review review = reviewRepository.findActiveReviewByReviewId(reviewId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.REVIEW_NOT_FOUND));
-        
-        return ReviewResponse.from(review);
+    public List<ReviewDetailResponse> getReviewsBySizeFit(Long productId, SizeFit sizeFit) {
+        List<Review> reviews = reviewRepository.findByProductIdAndSizeFitAndStatus(
+                productId, sizeFit, ReviewStatus.ACTIVE
+        );
+
+        return reviews.stream()
+                .map(this::convertToDetailResponse)
+                .collect(Collectors.toList());
     }
-    
+
     /**
-     * 상품별 리뷰 목록 조회
+     * 특정 상품의 쿠셔닝별 리뷰 조회
      */
-    public Page<ReviewResponse> getReviewsByProductId(Long productId, Pageable pageable) {
-        Page<Review> reviews = reviewRepository.findActiveReviewsByProductId(productId, pageable);
-        return reviews.map(ReviewResponse::from);
+    public List<ReviewDetailResponse> getReviewsByCushioning(Long productId, Cushion cushioning) {
+        List<Review> reviews = reviewRepository.findByProductIdAndCushioningAndStatus(
+                productId, cushioning, ReviewStatus.ACTIVE
+        );
+
+        return reviews.stream()
+                .map(this::convertToDetailResponse)
+                .collect(Collectors.toList());
     }
-    
+
     /**
-     * 상품별 리뷰 목록 조회 (요약버전)
+     * 특정 상품의 안정성별 리뷰 조회
      */
-    public Page<ReviewResponse> getReviewsSummaryByProductId(Long productId, Pageable pageable) {
-        Page<Review> reviews = reviewRepository.findActiveReviewsByProductId(productId, pageable);
-        return reviews.map(ReviewResponse::summaryFrom);
+    public List<ReviewDetailResponse> getReviewsByStability(Long productId, Stability stability) {
+        List<Review> reviews = reviewRepository.findByProductIdAndStabilityAndStatus(
+                productId, stability, ReviewStatus.ACTIVE
+        );
+
+        return reviews.stream()
+                .map(review -> convertToDetailResponse(review))
+                .collect(Collectors.toList());
+
     }
-    
-    /**
-     * 사용자별 리뷰 목록 조회
-     */
-    public Page<ReviewResponse> getReviewsByUserId(Long userId, Pageable pageable) {
-        Page<Review> reviews = reviewRepository.findActiveReviewsByUserId(userId, pageable);
-        return reviews.map(ReviewResponse::from);
-    }
-    
-    /**
-     * 필터링된 리뷰 목록 조회
-     */
-    public Page<ReviewResponse> getReviewsWithFilters(
-            Long productId, 
-            Integer minRating, 
-            Integer maxRating, 
-            String keyword,
-            Pageable pageable) {
-        
-        Page<Review> reviews = reviewRepository.findReviewsWithFilters(
-                productId, minRating, maxRating, keyword, pageable);
-        return reviews.map(ReviewResponse::from);
-    }
-    
-    /**
-     * 상품 평균 평점 조회
-     */
-    public Double getAverageRating(Long productId) {
-        Double rating = reviewRepository.getAverageRatingByProductId(productId);
-        return rating != null ? Math.round(rating * 10.0) / 10.0 : 0.0;
-    }
-    
-    /**
-     * 상품 리뷰 개수 조회
-     */
-    public Long getReviewCount(Long productId) {
-        return reviewRepository.countActiveReviewsByProductId(productId);
-    }
+
 }
