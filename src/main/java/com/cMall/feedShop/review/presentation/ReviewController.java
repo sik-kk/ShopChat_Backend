@@ -9,9 +9,10 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
-import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.Positive;
 
 /**
  * SPRINT1 - 리뷰 범용 API 컨트롤러
@@ -21,6 +22,7 @@ import jakarta.validation.constraints.Min;
 @RestController
 @RequestMapping("/api/reviews")
 @RequiredArgsConstructor
+@Validated // 추가: 클래스 레벨에서 validation 활성화
 @Tag(name = "Review", description = "리뷰 범용 API - SPRINT1")
 public class ReviewController {
 
@@ -34,8 +36,10 @@ public class ReviewController {
     @GetMapping("/{reviewId}")
     @Operation(summary = "리뷰 상세 조회", description = "특정 리뷰의 상세 정보를 조회합니다.")
     public ReviewDetailResponse getReviewDetail(
-            @PathVariable @Min(1) Long reviewId) {
-        
+            @PathVariable
+            @Positive(message = "리뷰 ID는 양수여야 합니다") // 추가: validation 어노테이션
+            Long reviewId) {
+
         log.info("리뷰 상세 조회 요청 - reviewId: {}", reviewId);
         return reviewService.getReviewDetail(reviewId);
     }
