@@ -136,7 +136,7 @@ class ReviewServiceTest {
             // when & then
             assertThatThrownBy(() -> reviewService.createReview(createRequest))
                     .isInstanceOf(BusinessException.class)
-                    .hasMessageContaining("로그인이 필요합니다");
+                    .hasMessageContaining("인증이 필요합니다");
         }
     }
 

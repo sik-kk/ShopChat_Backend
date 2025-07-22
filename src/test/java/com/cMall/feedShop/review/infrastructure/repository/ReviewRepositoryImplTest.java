@@ -20,7 +20,9 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -135,3 +137,4 @@ class ReviewRepositoryImplTest {
         verify(reviewJpaRepository, times(1)).countActiveReviewsByProductId(1L);
     }
 }
+
