@@ -53,6 +53,7 @@ public class ReviewController {
             @Parameter(description = "리뷰 ID") @PathVariable Long reviewId) {
         ReviewResponse response = reviewService.getReview(reviewId);
         return com.cMall.feedShop.common.dto.ApiResponse.success(response);
+
     }
 
     @GetMapping("/products/{productId}/statistics")
