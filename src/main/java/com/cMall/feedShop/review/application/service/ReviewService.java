@@ -2,6 +2,8 @@ package com.cMall.feedShop.review.application.service;
 
 import com.cMall.feedShop.common.exception.BusinessException;
 import com.cMall.feedShop.common.exception.ErrorCode;
+import com.cMall.feedShop.product.domain.model.Product;
+import com.cMall.feedShop.product.domain.repository.ProductRepository;
 import com.cMall.feedShop.review.application.dto.request.ReviewCreateRequest;
 import com.cMall.feedShop.review.application.dto.response.ReviewCreateResponse;
 import com.cMall.feedShop.review.application.dto.response.ReviewListResponse;
@@ -11,6 +13,7 @@ import com.cMall.feedShop.review.domain.Review;
 import com.cMall.feedShop.review.domain.repository.ReviewRepository;
 import com.cMall.feedShop.user.domain.model.User;
 import com.cMall.feedShop.user.domain.repository.UserRepository;
+import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.Authentication;
@@ -32,11 +35,13 @@ public class ReviewService {
 
     private final ReviewRepository reviewRepository;
     private final UserRepository userRepository;
+    private final ProductRepository productRepository;
 
     @Transactional
     public ReviewCreateResponse createReview(ReviewCreateRequest request) {
         // SecurityContext에서 현재 로그인한 사용자 정보 가져오기
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+
 
         if (authentication == null || !authentication.isAuthenticated()) {
             throw new BusinessException(ErrorCode.UNAUTHORIZED);
@@ -48,7 +53,11 @@ public class ReviewService {
         User user = userRepository.findByEmail(userEmail)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
-        // 리뷰 생성
+        // Product 조회
+        Product product = productRepository.findById(request.getProductId())
+                .orElseThrow(() -> new EntityNotFoundException("상품을 찾을 수 없습니다: " + request.getProductId()));
+
+
         Review review = Review.builder()
                 .title(request.getTitle())
                 .rating(request.getRating())
@@ -57,7 +66,7 @@ public class ReviewService {
                 .stability(request.getStability())
                 .content(request.getContent())
                 .user(user)
-                .productId(request.getProductId())
+                .product(product)  // 수정된 부분
                 .build();
 
         Review savedReview = reviewRepository.save(review);
