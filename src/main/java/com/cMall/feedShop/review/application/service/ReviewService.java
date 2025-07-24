@@ -42,6 +42,7 @@ public class ReviewService {
         // SecurityContext에서 현재 로그인한 사용자 정보 가져오기
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
 
+
         if (authentication == null || !authentication.isAuthenticated()) {
             throw new BusinessException(ErrorCode.UNAUTHORIZED);
         }
@@ -56,7 +57,7 @@ public class ReviewService {
         Product product = productRepository.findById(request.getProductId())
                 .orElseThrow(() -> new EntityNotFoundException("상품을 찾을 수 없습니다: " + request.getProductId()));
 
-// 리뷰 생성
+
         Review review = Review.builder()
                 .title(request.getTitle())
                 .rating(request.getRating())
