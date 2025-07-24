@@ -23,7 +23,7 @@ public class ReviewController {
 
     private final ReviewService reviewService;
     private final Review3ElementStatisticsService statisticsService;
-
+  
     @GetMapping("/products/{productId}")
     @ApiResponseFormat(message = "상품 리뷰 목록을 성공적으로 조회했습니다.")
     @Operation(summary = "상품별 리뷰 목록 조회", description = "특정 상품의 리뷰 목록을 조회합니다. 로그인이 필요하지 않습니다.")
@@ -68,5 +68,15 @@ public class ReviewController {
             @Parameter(description = "상품 ID") @PathVariable Long productId) {
         Review3ElementStatisticsResponse response = statisticsService.getProductStatistics(productId);
         return com.cMall.feedShop.common.dto.ApiResponse.success(response);
+    }
+
+    @GetMapping("/products/{productId}/statistics")
+    @ApiResponseFormat(message = "상품 3요소 평가 통계를 성공적으로 조회했습니다.")
+    @Operation(summary = "상품별 3요소 평가 통계 조회",
+            description = "특정 상품의 Cushion, SizeFit, Stability 평가 통계를 조회합니다. 로그인이 필요하지 않습니다.")
+    public ApiResponse<Review3ElementStatisticsResponse> getProductStatistics(
+            @Parameter(description = "상품 ID") @PathVariable Long productId) {
+        Review3ElementStatisticsResponse response = statisticsService.getProductStatistics(productId);
+        return ApiResponse.success(response);
     }
 }
