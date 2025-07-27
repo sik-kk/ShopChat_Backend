@@ -69,4 +69,13 @@ public class ReviewRepositoryImpl implements ReviewRepository {
     public Map<Stability, Long> getStabilityDistributionByProductId(Long productId) {
         return reviewQueryRepository.getStabilityDistributionByProductId(productId);
     }
+    @Override
+    public boolean existsByUserIdAndProductId(Long userId, Long productId) {
+        return reviewQueryRepository.existsByUserIdAndProductId(userId, productId);
+    }
+
+    @Override
+    public boolean existsActiveReviewByUserIdAndProductId(Long userId, Long productId) {
+        return reviewQueryRepository.existsActiveReviewByUserIdAndProductId(userId, productId);
+    }
 }
