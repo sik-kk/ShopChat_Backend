@@ -3,14 +3,19 @@ package com.cMall.feedShop.review.application.dto.request;
 import com.cMall.feedShop.review.domain.enums.Cushion;
 import com.cMall.feedShop.review.domain.enums.SizeFit;
 import com.cMall.feedShop.review.domain.enums.Stability;
+import com.cMall.feedShop.review.domain.validation.ValidReviewElements;
 import jakarta.validation.constraints.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.util.List;
 
 @Getter
 @Setter
 @NoArgsConstructor
+@ValidReviewElements // 추가된 클래스 레벨 검증
 public class ReviewCreateRequest {
 
     @NotBlank(message = "리뷰 제목은 필수입니다.")
@@ -37,4 +42,7 @@ public class ReviewCreateRequest {
 
     @NotNull(message = "상품 ID는 필수입니다.")
     private Long productId;
+
+    // 이미지 업로드 필드 추가
+    private List<MultipartFile> images;
 }

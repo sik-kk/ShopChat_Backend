@@ -1,6 +1,7 @@
 package com.cMall.feedShop.review.domain;
 
 import com.cMall.feedShop.common.BaseTimeEntity;
+import com.cMall.feedShop.product.domain.model.Product;
 import com.cMall.feedShop.review.domain.enums.Cushion;
 import com.cMall.feedShop.review.domain.enums.ReviewStatus;
 import com.cMall.feedShop.review.domain.enums.SizeFit;
@@ -10,6 +11,9 @@ import jakarta.persistence.*;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
 
 @Entity
 @Table(name = "reviews")
@@ -63,12 +67,18 @@ public class Review extends BaseTimeEntity {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
-    @Column(name = "product_id", nullable = false)
-    private Long productId;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "product_id", nullable = false)
+    private Product product;
+
+    // 🆕 이미지 연관관계 추가
+    @OneToMany(mappedBy = "review", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<ReviewImage> images = new ArrayList<>();
+
 
     @Builder
     public Review(String title, Integer rating, SizeFit sizeFit, Cushion cushion,
-                  Stability stability, String content, User user, Long productId) {
+                  Stability stability, String content, User user, Product product) {
         validateTitle(title);
         validateRating(rating);
         validateContent(content);
@@ -80,7 +90,7 @@ public class Review extends BaseTimeEntity {
         this.stability = stability;
         this.content = content;
         this.user = user;
-        this.productId = productId;
+        this.product = product;
         this.points = 0;
         this.reportCount = 0;
         this.isBlinded = false;
@@ -107,6 +117,30 @@ public class Review extends BaseTimeEntity {
         return this.user.getId().equals(userId);
     }
 
+    // 🆕 이미지 관련 메서드들
+    public void addImage(ReviewImage image) {
+        this.images.add(image);
+    }
+
+    public void removeImage(ReviewImage image) {
+        this.images.remove(image);
+        image.delete();
+    }
+
+    public List<ReviewImage> getActiveImages() {
+        return images.stream()
+                .filter(ReviewImage::isActive)
+                .sorted(Comparator.comparing(ReviewImage::getImageOrder))
+                .toList();
+    }
+
+    public boolean hasImages() {
+        return !getActiveImages().isEmpty();
+    }
+
+    public int getActiveImageCount() {
+        return getActiveImages().size();
+    }
     // 검증 메서드들
     public static void validateTitle(String title) {
         if (title == null || title.trim().isEmpty()) {
@@ -131,4 +165,13 @@ public class Review extends BaseTimeEntity {
             throw new IllegalArgumentException("리뷰 내용은 1000자를 초과할 수 없습니다.");
         }
     }
+
+    /**
+     * 3요소 평가가 모두 완료되었는지 확인
+     */
+    public boolean hasCompleteReviewElements() {
+        return this.sizeFit != null && this.cushion != null && this.stability != null;
+    }
+
+
 }

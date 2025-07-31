@@ -8,6 +8,7 @@ import lombok.Builder;
 import lombok.Getter;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Getter
 @Builder
@@ -25,8 +26,12 @@ public class ReviewResponse {
     private Long productId;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+    private List<ReviewImageResponse> images;
+    private boolean hasImages;
 
-    public static ReviewResponse from(Review review) {
+    public static ReviewResponse from(Review review, List<ReviewImageResponse> imageList) {
+        //                                                                      ↑
+        //                                                               매개변수명 변경
         return ReviewResponse.builder()
                 .reviewId(review.getReviewId())
                 .title(review.getTitle())
@@ -39,9 +44,16 @@ public class ReviewResponse {
                 .userId(review.getUser().getId())
                 .userName(review.getUser().getUserProfile() != null ?
                         review.getUser().getUserProfile().getName() : "익명")
-                .productId(review.getProductId())
+                .productId(review.getProduct().getProductId())
                 .createdAt(review.getCreatedAt())
                 .updatedAt(review.getUpdatedAt())
+                .images(imageList)  // ← 매개변수명 사용
+                .hasImages(imageList != null && !imageList.isEmpty())
                 .build();
+    }
+
+    // 기존 메서드도 유지
+    public static ReviewResponse from(Review review) {
+        return from(review, List.of());
     }
 }
