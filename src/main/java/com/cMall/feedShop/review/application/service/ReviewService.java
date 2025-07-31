@@ -19,8 +19,10 @@ import com.cMall.feedShop.review.domain.service.ReviewDuplicationValidator;
 import com.cMall.feedShop.user.domain.model.User;
 import com.cMall.feedShop.user.domain.repository.UserRepository;
 import jakarta.persistence.EntityNotFoundException;
+
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+
 import org.springframework.data.domain.PageImpl;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -39,6 +41,8 @@ import java.util.stream.Collectors;
 
 @Slf4j
 @Service
+
+
 @Transactional(readOnly = true)
 public class ReviewService {
 
@@ -48,6 +52,7 @@ public class ReviewService {
     private final ReviewDuplicationValidator duplicationValidator;
     private final ReviewImageService reviewImageService;
     private final ReviewImageRepository reviewImageRepository;
+
 
     // 🔥 수정: 선택적 의존성 주입으로 변경 (GCP만)
     @Autowired(required = false)
@@ -70,6 +75,7 @@ public class ReviewService {
         this.reviewImageRepository = reviewImageRepository;
     }
 
+
     @Transactional
     public ReviewCreateResponse createReview(ReviewCreateRequest request, List<MultipartFile> images) {
         // SecurityContext에서 현재 로그인한 사용자 정보 가져오기
@@ -85,6 +91,7 @@ public class ReviewService {
         log.info("Principal: {}", authentication.getPrincipal());
         log.info("Name: {}", authentication.getName());
         log.info("Authorities: {}", authentication.getAuthorities());
+
 
         // Principal에서 직접 이메일 가져오기
         String userEmail;
@@ -140,6 +147,7 @@ public class ReviewService {
         // 중복 리뷰 검증
         duplicationValidator.validateNoDuplicateActiveReview(user.getId(), product.getProductId());
 
+
         // Review 객체를 먼저 생성하고 저장
         Review review = Review.builder()
                 .title(request.getTitle())
@@ -155,11 +163,14 @@ public class ReviewService {
         // Review 저장
         Review savedReview = reviewRepository.save(review);
 
+
         // 🔥 수정: GCP Storage만 사용하도록 단순화
+
         List<String> imageUrls = new ArrayList<>();
         if (images != null && !images.isEmpty()) {
             try {
                 log.info("이미지 업로드 시작: {} 개의 파일", images.size());
+
 
                 // 🔥 GCP Storage 서비스만 사용
                 if (gcpStorageService != null) {
@@ -183,6 +194,7 @@ public class ReviewService {
             } catch (Exception e) {
                 log.error("이미지 업로드 실패했지만 리뷰는 저장됩니다.", e);
                 // 🔥 이미지 실패해도 리뷰는 정상 저장되도록 예외를 던지지 않음
+
             }
         }
 
@@ -198,6 +210,7 @@ public class ReviewService {
                 .message("리뷰가 성공적으로 등록되었습니다.")
                 .imageUrls(imageUrls)
                 .build();
+
     }
 
     // 업로드 결과를 기존 ReviewImage 엔티티로 저장
@@ -301,6 +314,7 @@ public class ReviewService {
         log.error("모든 방법으로 사용자 조회 실패: email='{}'", userEmail);
         throw new BusinessException(ErrorCode.USER_NOT_FOUND, "사용자를 찾을 수 없습니다: " + userEmail);
     }
+
 
     /**
      * 상품별 리뷰 목록 조회
@@ -481,4 +495,6 @@ public class ReviewService {
         reviewRepository.save(review);
     }
     */
+
 }
+
