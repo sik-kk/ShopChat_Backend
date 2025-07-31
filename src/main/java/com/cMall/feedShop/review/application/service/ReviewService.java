@@ -19,8 +19,8 @@ import com.cMall.feedShop.review.domain.service.ReviewDuplicationValidator;
 import com.cMall.feedShop.user.domain.model.User;
 import com.cMall.feedShop.user.domain.repository.UserRepository;
 import jakarta.persistence.EntityNotFoundException;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -39,7 +39,6 @@ import java.util.stream.Collectors;
 
 @Slf4j
 @Service
-@RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class ReviewService {
 
@@ -49,7 +48,27 @@ public class ReviewService {
     private final ReviewDuplicationValidator duplicationValidator;
     private final ReviewImageService reviewImageService;
     private final ReviewImageRepository reviewImageRepository;
-    private final GcpStorageService gcpStorageService;
+
+    // 🔥 수정: 선택적 의존성 주입으로 변경 (GCP만)
+    @Autowired(required = false)
+    private GcpStorageService gcpStorageService;
+
+    // 🔥 수정: 수동 생성자 (필수 의존성만)
+    public ReviewService(
+            ReviewRepository reviewRepository,
+            UserRepository userRepository,
+            ProductRepository productRepository,
+            ReviewDuplicationValidator duplicationValidator,
+            ReviewImageService reviewImageService,
+            ReviewImageRepository reviewImageRepository) {
+
+        this.reviewRepository = reviewRepository;
+        this.userRepository = userRepository;
+        this.productRepository = productRepository;
+        this.duplicationValidator = duplicationValidator;
+        this.reviewImageService = reviewImageService;
+        this.reviewImageRepository = reviewImageRepository;
+    }
 
     @Transactional
     public ReviewCreateResponse createReview(ReviewCreateRequest request, List<MultipartFile> images) {
@@ -136,26 +155,34 @@ public class ReviewService {
         // Review 저장
         Review savedReview = reviewRepository.save(review);
 
-        // 이미지 업로드 처리
+        // 🔥 수정: GCP Storage만 사용하도록 단순화
         List<String> imageUrls = new ArrayList<>();
         if (images != null && !images.isEmpty()) {
             try {
                 log.info("이미지 업로드 시작: {} 개의 파일", images.size());
-                List<GcpStorageService.UploadResult> uploadResults =
-                        gcpStorageService.uploadFilesWithDetails(images, "reviews");
 
-                // UploadResult를 ReviewImage로 저장
-                saveReviewImagesFromUploadResults(savedReview, uploadResults);
+                // 🔥 GCP Storage 서비스만 사용
+                if (gcpStorageService != null) {
+                    log.info("GCP Storage 서비스 사용");
+                    List<GcpStorageService.UploadResult> uploadResults = gcpStorageService.uploadFilesWithDetails(images, "reviews");
 
-                // URL만 추출해서 응답용으로 사용
-                imageUrls = uploadResults.stream()
-                        .map(GcpStorageService.UploadResult::getFilePath)
-                        .collect(Collectors.toList());
+                    if (!uploadResults.isEmpty()) {
+                        // UploadResult를 ReviewImage로 저장
+                        saveReviewImagesFromUploadResults(savedReview, uploadResults);
+
+                        // URL만 추출해서 응답용으로 사용
+                        imageUrls = uploadResults.stream()
+                                .map(GcpStorageService.UploadResult::getFilePath)
+                                .collect(Collectors.toList());
+                    }
+                } else {
+                    log.warn("GCP Storage 서비스가 없습니다. 이미지 없이 리뷰만 저장합니다.");
+                }
 
                 log.info("이미지 업로드 완료: {}", imageUrls);
             } catch (Exception e) {
-                log.error("이미지 업로드 실패", e);
-                throw new RuntimeException("이미지 업로드에 실패했습니다", e);
+                log.error("이미지 업로드 실패했지만 리뷰는 저장됩니다.", e);
+                // 🔥 이미지 실패해도 리뷰는 정상 저장되도록 예외를 던지지 않음
             }
         }
 
@@ -222,14 +249,19 @@ public class ReviewService {
 
         for (String imageUrl : imageUrls) {
             try {
-                boolean deleted = gcpStorageService.deleteFile(imageUrl);
-                if (deleted) {
-                    log.info("롤백: GCP Storage 파일 삭제 성공: {}", imageUrl);
+                // 🔥 GCP Storage만 사용
+                if (gcpStorageService != null) {
+                    boolean deleted = gcpStorageService.deleteFile(imageUrl);
+                    if (deleted) {
+                        log.info("롤백: GCP Storage 파일 삭제 성공: {}", imageUrl);
+                    } else {
+                        log.warn("롤백: GCP Storage 파일 삭제 실패: {}", imageUrl);
+                    }
                 } else {
-                    log.warn("롤백: GCP Storage 파일 삭제 실패: {}", imageUrl);
+                    log.warn("롤백: GCP Storage 서비스가 없습니다: {}", imageUrl);
                 }
             } catch (Exception e) {
-                log.error("롤백: GCP Storage 파일 삭제 중 오류: {}", imageUrl, e);
+                log.error("롤백: 파일 삭제 중 오류: {}", imageUrl, e);
             }
         }
     }
