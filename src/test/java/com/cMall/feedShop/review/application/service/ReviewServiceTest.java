@@ -142,6 +142,8 @@ class ReviewServiceTest {
         createRequest.setStability(Stability.STABLE);
         createRequest.setContent("정말 편하고 좋습니다. 추천해요!");
         createRequest.setProductId(1L);
+
+        ReflectionTestUtils.setField(reviewService, "gcpStorageService", gcpStorageService);
     }
 
     @AfterEach
@@ -340,7 +342,13 @@ class ReviewServiceTest {
         // given
         MultipartFile imageFile = mock(MultipartFile.class);
         List<MultipartFile> imageFiles = List.of(imageFile);
-        ReviewImage testReviewImage = mock(ReviewImage.class);
+
+        GcpStorageService.UploadResult mockResult = mock(GcpStorageService.UploadResult.class);
+        given(mockResult.getOriginalFilename()).willReturn("image.jpg");
+        given(mockResult.getStoredFilename()).willReturn("uuid-image.jpg");
+        given(mockResult.getFilePath()).willReturn("reviews/uuid-image.jpg");
+        given(mockResult.getFileSize()).willReturn(12345L);
+        given(mockResult.getContentType()).willReturn("image/jpeg");
 
         try (MockedStatic<SecurityContextHolder> mockedSecurityContextHolder = mockStatic(SecurityContextHolder.class)) {
             mockedSecurityContextHolder.when(SecurityContextHolder::getContext).thenReturn(securityContext);
@@ -348,11 +356,8 @@ class ReviewServiceTest {
             given(userRepository.findByEmail("test@test.com")).willReturn(Optional.of(testUser));
             given(productRepository.findById(1L)).willReturn(Optional.of(testProduct));
             given(reviewRepository.save(any(Review.class))).willReturn(testReview);
-
-            // ✅ 수정: GcpStorageService 모킹 - 실제 업로드 결과 객체 반환
-            // GCP 업로드 결과를 모킹 (실제 반환 타입에 맞게 조정 필요)
             given(gcpStorageService.uploadFilesWithDetails(any(List.class), eq("reviews")))
-                    .willReturn(List.of(/* Mock된 업로드 결과 객체들 */));
+                    .willReturn(List.of(mockResult));
 
             // when
             ReviewCreateResponse response = reviewService.createReview(createRequest, imageFiles);
@@ -361,10 +366,9 @@ class ReviewServiceTest {
             assertThat(response.getReviewId()).isEqualTo(1L);
             assertThat(response.getMessage()).isEqualTo("리뷰가 성공적으로 등록되었습니다.");
             verify(reviewRepository, times(1)).save(any(Review.class));
-            // ✅ 제거: ReviewImageService 호출 검증 제거 (실제로 호출되지 않음)
-            // 대신 GcpStorageService 호출 검증
             verify(gcpStorageService, times(1)).uploadFilesWithDetails(any(List.class), eq("reviews"));
         }
+
     }
 
     @Test
