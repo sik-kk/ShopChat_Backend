@@ -19,8 +19,10 @@ import com.cMall.feedShop.review.domain.service.ReviewDuplicationValidator;
 import com.cMall.feedShop.user.domain.model.User;
 import com.cMall.feedShop.user.domain.repository.UserRepository;
 import jakarta.persistence.EntityNotFoundException;
-import lombok.RequiredArgsConstructor;
+
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+
 import org.springframework.data.domain.PageImpl;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -39,7 +41,8 @@ import java.util.stream.Collectors;
 
 @Slf4j
 @Service
-@RequiredArgsConstructor
+
+
 @Transactional(readOnly = true)
 public class ReviewService {
 
@@ -49,7 +52,29 @@ public class ReviewService {
     private final ReviewDuplicationValidator duplicationValidator;
     private final ReviewImageService reviewImageService;
     private final ReviewImageRepository reviewImageRepository;
-    private final GcpStorageService gcpStorageService;
+
+
+    // 🔥 수정: 선택적 의존성 주입으로 변경 (GCP만)
+    @Autowired(required = false)
+    private GcpStorageService gcpStorageService;
+
+    // 🔥 수정: 수동 생성자 (필수 의존성만)
+    public ReviewService(
+            ReviewRepository reviewRepository,
+            UserRepository userRepository,
+            ProductRepository productRepository,
+            ReviewDuplicationValidator duplicationValidator,
+            ReviewImageService reviewImageService,
+            ReviewImageRepository reviewImageRepository) {
+
+        this.reviewRepository = reviewRepository;
+        this.userRepository = userRepository;
+        this.productRepository = productRepository;
+        this.duplicationValidator = duplicationValidator;
+        this.reviewImageService = reviewImageService;
+        this.reviewImageRepository = reviewImageRepository;
+    }
+
 
     @Transactional
     public ReviewCreateResponse createReview(ReviewCreateRequest request, List<MultipartFile> images) {
@@ -66,6 +91,7 @@ public class ReviewService {
         log.info("Principal: {}", authentication.getPrincipal());
         log.info("Name: {}", authentication.getName());
         log.info("Authorities: {}", authentication.getAuthorities());
+
 
         // Principal에서 직접 이메일 가져오기
         String userEmail;
@@ -121,6 +147,7 @@ public class ReviewService {
         // 중복 리뷰 검증
         duplicationValidator.validateNoDuplicateActiveReview(user.getId(), product.getProductId());
 
+
         // Review 객체를 먼저 생성하고 저장
         Review review = Review.builder()
                 .title(request.getTitle())
@@ -136,26 +163,38 @@ public class ReviewService {
         // Review 저장
         Review savedReview = reviewRepository.save(review);
 
-        // 이미지 업로드 처리
+
+        // 🔥 수정: GCP Storage만 사용하도록 단순화
+
         List<String> imageUrls = new ArrayList<>();
         if (images != null && !images.isEmpty()) {
             try {
                 log.info("이미지 업로드 시작: {} 개의 파일", images.size());
-                List<GcpStorageService.UploadResult> uploadResults =
-                        gcpStorageService.uploadFilesWithDetails(images, "reviews");
 
-                // UploadResult를 ReviewImage로 저장
-                saveReviewImagesFromUploadResults(savedReview, uploadResults);
 
-                // URL만 추출해서 응답용으로 사용
-                imageUrls = uploadResults.stream()
-                        .map(GcpStorageService.UploadResult::getFilePath)
-                        .collect(Collectors.toList());
+                // 🔥 GCP Storage 서비스만 사용
+                if (gcpStorageService != null) {
+                    log.info("GCP Storage 서비스 사용");
+                    List<GcpStorageService.UploadResult> uploadResults = gcpStorageService.uploadFilesWithDetails(images, "reviews");
+
+                    if (!uploadResults.isEmpty()) {
+                        // UploadResult를 ReviewImage로 저장
+                        saveReviewImagesFromUploadResults(savedReview, uploadResults);
+
+                        // URL만 추출해서 응답용으로 사용
+                        imageUrls = uploadResults.stream()
+                                .map(GcpStorageService.UploadResult::getFilePath)
+                                .collect(Collectors.toList());
+                    }
+                } else {
+                    log.warn("GCP Storage 서비스가 없습니다. 이미지 없이 리뷰만 저장합니다.");
+                }
 
                 log.info("이미지 업로드 완료: {}", imageUrls);
             } catch (Exception e) {
-                log.error("이미지 업로드 실패", e);
-                throw new RuntimeException("이미지 업로드에 실패했습니다", e);
+                log.error("이미지 업로드 실패했지만 리뷰는 저장됩니다.", e);
+                // 🔥 이미지 실패해도 리뷰는 정상 저장되도록 예외를 던지지 않음
+
             }
         }
 
@@ -171,6 +210,7 @@ public class ReviewService {
                 .message("리뷰가 성공적으로 등록되었습니다.")
                 .imageUrls(imageUrls)
                 .build();
+
     }
 
     // 업로드 결과를 기존 ReviewImage 엔티티로 저장
@@ -222,14 +262,19 @@ public class ReviewService {
 
         for (String imageUrl : imageUrls) {
             try {
-                boolean deleted = gcpStorageService.deleteFile(imageUrl);
-                if (deleted) {
-                    log.info("롤백: GCP Storage 파일 삭제 성공: {}", imageUrl);
+                // 🔥 GCP Storage만 사용
+                if (gcpStorageService != null) {
+                    boolean deleted = gcpStorageService.deleteFile(imageUrl);
+                    if (deleted) {
+                        log.info("롤백: GCP Storage 파일 삭제 성공: {}", imageUrl);
+                    } else {
+                        log.warn("롤백: GCP Storage 파일 삭제 실패: {}", imageUrl);
+                    }
                 } else {
-                    log.warn("롤백: GCP Storage 파일 삭제 실패: {}", imageUrl);
+                    log.warn("롤백: GCP Storage 서비스가 없습니다: {}", imageUrl);
                 }
             } catch (Exception e) {
-                log.error("롤백: GCP Storage 파일 삭제 중 오류: {}", imageUrl, e);
+                log.error("롤백: 파일 삭제 중 오류: {}", imageUrl, e);
             }
         }
     }
@@ -269,6 +314,7 @@ public class ReviewService {
         log.error("모든 방법으로 사용자 조회 실패: email='{}'", userEmail);
         throw new BusinessException(ErrorCode.USER_NOT_FOUND, "사용자를 찾을 수 없습니다: " + userEmail);
     }
+
 
     /**
      * 상품별 리뷰 목록 조회
@@ -449,4 +495,6 @@ public class ReviewService {
         reviewRepository.save(review);
     }
     */
+
 }
+
