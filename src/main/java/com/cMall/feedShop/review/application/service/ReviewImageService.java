@@ -126,7 +126,11 @@ public class ReviewImageService {
     }
 
     /**
-     * 선택된 이미지들을 삭제
+     * 선택된 이미지들을 삭제 (성능 최적화 적용)
+     *
+     * 🚀 성능 최적화:
+     * - findActiveImagesByReviewIdAndImageIds 메서드로 필요한 이미지만 DB에서 직접 조회
+     * - 전체 이미지를 메모리로 가져온 후 필터링하는 비효율 제거
      */
     @Transactional
     public List<Long> deleteSelectedImages(Long reviewId, List<Long> deleteImageIds) {
@@ -136,10 +140,9 @@ public class ReviewImageService {
 
         log.info("선택된 이미지 삭제 시작: reviewId={}, 삭제 대상 이미지 ID={}", reviewId, deleteImageIds);
 
-        List<ReviewImage> imagesToDelete = reviewImageRepository.findActiveImagesByReviewId(reviewId)
-                .stream()
-                .filter(image -> deleteImageIds.contains(image.getReviewImageId()))
-                .toList();
+        // ✨ 성능 최적화: 필요한 이미지만 DB에서 직접 조회
+        List<ReviewImage> imagesToDelete = reviewImageRepository
+                .findActiveImagesByReviewIdAndImageIds(reviewId, deleteImageIds);
 
         List<Long> actuallyDeletedIds = new ArrayList<>();
 
@@ -170,8 +173,15 @@ public class ReviewImageService {
 
     /**
      * 리뷰의 특정 이미지만 삭제
+     *
+     * 🔧 트랜잭션 최적화:
+     * - 내부에서 @Transactional이 적용된 deleteSelectedImages를 호출하므로
+     * - 불필요한 트랜잭션 중첩을 피하기 위해 @Transactional 어노테이션 제거
+     *
+     * @param reviewId 리뷰 ID
+     * @param imageId 삭제할 이미지 ID
+     * @return 삭제 성공 여부
      */
-    @Transactional
     public boolean deleteSingleImage(Long reviewId, Long imageId) {
         return !deleteSelectedImages(reviewId, List.of(imageId)).isEmpty();
     }

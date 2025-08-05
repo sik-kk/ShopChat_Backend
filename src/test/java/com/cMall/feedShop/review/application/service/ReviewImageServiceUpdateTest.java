@@ -68,13 +68,12 @@ class ReviewImageServiceUpdateTest {
         given(testImage1.getFilePath()).willReturn("2024/01/01/image1.jpg");
         given(testImage2.getReviewImageId()).willReturn(2L);
         given(testImage2.getFilePath()).willReturn("2024/01/01/image2.jpg");
-        given(testImage3.getReviewImageId()).willReturn(3L);
-        // testImage3의 filePath는 삭제되지 않으므로 설정하지 않음
 
         List<Long> deleteImageIds = List.of(1L, 2L);
-        List<ReviewImage> existingImages = List.of(testImage1, testImage2, testImage3);
+        List<ReviewImage> existingImages = List.of(testImage1, testImage2);
 
-        given(reviewImageRepository.findActiveImagesByReviewId(1L))
+        // ✨ 수정: 새로운 메서드 사용
+        given(reviewImageRepository.findActiveImagesByReviewIdAndImageIds(1L, deleteImageIds))
                 .willReturn(existingImages);
 
         // when
@@ -86,12 +85,10 @@ class ReviewImageServiceUpdateTest {
         // 선택된 이미지들만 삭제되었는지 확인
         verify(testImage1).delete();
         verify(testImage2).delete();
-        verify(testImage3, never()).delete(); // 3번 이미지는 삭제되지 않음
 
         // 파일 삭제도 호출되었는지 확인
         verify(uploadService).deleteImage("2024/01/01/image1.jpg");
         verify(uploadService).deleteImage("2024/01/01/image2.jpg");
-        verify(uploadService, never()).deleteImage("2024/01/01/image3.jpg");
     }
 
     @Test
@@ -105,7 +102,7 @@ class ReviewImageServiceUpdateTest {
 
         // then
         assertThat(deletedIds).isEmpty();
-        verify(reviewImageRepository, never()).findActiveImagesByReviewId(any());
+        verify(reviewImageRepository, never()).findActiveImagesByReviewIdAndImageIds(any(), any());
         verify(uploadService, never()).deleteImage(any());
     }
 
@@ -117,29 +114,25 @@ class ReviewImageServiceUpdateTest {
 
         // then
         assertThat(deletedIds).isEmpty();
-        verify(reviewImageRepository, never()).findActiveImagesByReviewId(any());
+        verify(reviewImageRepository, never()).findActiveImagesByReviewIdAndImageIds(any(), any());
     }
 
     @Test
     @DisplayName("존재하지 않는 이미지 ID로 삭제를 시도해도 오류가 발생하지 않는다")
     void deleteSelectedImages_NonExistentIds() {
         // given
-        given(testImage1.getReviewImageId()).willReturn(1L);
-        given(testImage2.getReviewImageId()).willReturn(2L);
-
         List<Long> deleteImageIds = List.of(999L, 998L);
-        List<ReviewImage> existingImages = List.of(testImage1, testImage2);
 
-        given(reviewImageRepository.findActiveImagesByReviewId(1L))
-                .willReturn(existingImages);
+        // ✨ 수정: 존재하지 않는 이미지 ID로 조회하면 빈 리스트 반환
+        given(reviewImageRepository.findActiveImagesByReviewIdAndImageIds(1L, deleteImageIds))
+                .willReturn(List.of());
 
         // when
         List<Long> deletedIds = reviewImageService.deleteSelectedImages(1L, deleteImageIds);
 
         // then
         assertThat(deletedIds).isEmpty(); // 존재하지 않는 ID이므로 삭제된 것 없음
-        verify(testImage1, never()).delete();
-        verify(testImage2, never()).delete();
+        verify(uploadService, never()).deleteImage(any());
     }
 
     @Test
@@ -154,8 +147,8 @@ class ReviewImageServiceUpdateTest {
         MultipartFile newImageFile = mock(MultipartFile.class);
         List<MultipartFile> newImageFiles = List.of(newImageFile);
 
-        // 삭제 관련 모킹
-        given(reviewImageRepository.findActiveImagesByReviewId(1L))
+        // 삭제 관련 모킹 - 새로운 메서드 사용
+        given(reviewImageRepository.findActiveImagesByReviewIdAndImageIds(1L, deleteImageIds))
                 .willReturn(List.of(testImage1));
 
         // 삭제 후 남은 이미지 개수 모킹 (countActiveImagesByReviewId 호출 순서대로)
@@ -198,7 +191,8 @@ class ReviewImageServiceUpdateTest {
         given(testImage1.getReviewImageId()).willReturn(1L);
         given(testImage1.getFilePath()).willReturn("2024/01/01/image1.jpg");
 
-        given(reviewImageRepository.findActiveImagesByReviewId(1L))
+        // ✨ 수정: 새로운 메서드 사용 - 단일 이미지 ID 리스트로 조회
+        given(reviewImageRepository.findActiveImagesByReviewIdAndImageIds(1L, List.of(1L)))
                 .willReturn(List.of(testImage1));
 
         // when
@@ -213,18 +207,15 @@ class ReviewImageServiceUpdateTest {
     @Test
     @DisplayName("존재하지 않는 이미지를 삭제하려 하면 false를 반환한다")
     void deleteSingleImage_NotFound() {
-        // given
-        given(testImage1.getReviewImageId()).willReturn(1L);
-
-        given(reviewImageRepository.findActiveImagesByReviewId(1L))
-                .willReturn(List.of(testImage1)); // 1번 이미지만 존재
+        // given - 존재하지 않는 이미지 ID로 조회하면 빈 리스트 반환
+        given(reviewImageRepository.findActiveImagesByReviewIdAndImageIds(1L, List.of(999L)))
+                .willReturn(List.of()); // 빈 리스트 반환
 
         // when
         boolean success = reviewImageService.deleteSingleImage(1L, 999L); // 999번 이미지 삭제 시도
 
         // then
         assertThat(success).isFalse();
-        verify(testImage1, never()).delete();
         verify(uploadService, never()).deleteImage(any());
     }
 
@@ -286,7 +277,9 @@ class ReviewImageServiceUpdateTest {
         given(testImage1.getFilePath()).willReturn("2024/01/01/image1.jpg");
 
         List<Long> deleteImageIds = List.of(1L);
-        given(reviewImageRepository.findActiveImagesByReviewId(1L))
+
+        // ✨ 수정: 새로운 메서드 사용
+        given(reviewImageRepository.findActiveImagesByReviewIdAndImageIds(1L, deleteImageIds))
                 .willReturn(List.of(testImage1));
 
         // 파일 삭제 실패 시뮬레이션
@@ -343,9 +336,9 @@ class ReviewImageServiceUpdateTest {
         MultipartFile newImage = mock(MultipartFile.class);
         List<MultipartFile> newImageFiles = List.of(newImage); // 1개 추가
 
-        // 삭제 전 3개 이미지 존재
-        given(reviewImageRepository.findActiveImagesByReviewId(1L))
-                .willReturn(List.of(testImage1, testImage2, testImage3));
+        // ✨ 수정: 새로운 메서드 사용 - 삭제할 이미지들만 조회
+        given(reviewImageRepository.findActiveImagesByReviewIdAndImageIds(1L, deleteImageIds))
+                .willReturn(List.of(testImage1, testImage2));
 
         // 삭제 후 1개 이미지 남음
         given(reviewImageRepository.countActiveImagesByReviewId(1L))
@@ -375,7 +368,6 @@ class ReviewImageServiceUpdateTest {
         // 삭제가 먼저 수행되었는지 확인
         verify(testImage1).delete();
         verify(testImage2).delete();
-        verify(testImage3, never()).delete();
 
         // 그 다음 추가가 수행되었는지 확인 - validateImageCount는 두 번 호출됨
         verify(uploadService, times(2)).validateImageCount(1, 1);
