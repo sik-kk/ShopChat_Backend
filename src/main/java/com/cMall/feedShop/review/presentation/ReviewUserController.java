@@ -47,9 +47,7 @@ public class ReviewUserController {
             @Valid @RequestPart("review") ReviewCreateRequest request,
             @RequestPart(value = "images", required = false) List<MultipartFile> images) {
 
-        // 이미지 설정
-        request.setImages(images);
-
+        // ✅ 수정: DTO에 이미지를 설정하지 않고, Service에 별도 파라미터로 전달
         ReviewCreateResponse response = reviewService.createReview(request, images);
         return ApiResponse.success(response);
     }
@@ -84,10 +82,7 @@ public class ReviewUserController {
         log.info("리뷰 수정 API 호출: reviewId={}, hasNewImages={}",
                 reviewId, newImages != null && !newImages.isEmpty());
 
-        // 새 이미지를 요청 객체에 설정
-        request.setNewImages(newImages);
-
-        // 서비스 호출
+        // ✅ 수정: DTO에 이미지를 설정하지 않고, Service에 별도 파라미터로 전달
         ReviewUpdateResponse response = reviewService.updateReview(reviewId, request, newImages);
 
         log.info("리뷰 수정 API 완료: reviewId={}, 새 이미지 수={}, 삭제된 이미지 수={}",

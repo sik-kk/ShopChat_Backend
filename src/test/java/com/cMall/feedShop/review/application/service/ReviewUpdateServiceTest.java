@@ -105,7 +105,7 @@ class ReviewUpdateServiceTest {
                 .build());
         ReflectionTestUtils.setField(testReview, "reviewId", 1L);
 
-        // 수정 요청 데이터 생성
+        // 수정 요청 데이터 생성 (불변 DTO)
         updateRequest = ReviewUpdateRequest.builder()
                 .title("수정된 제목")
                 .rating(5)
@@ -308,7 +308,18 @@ class ReviewUpdateServiceTest {
         mockSecurityContextForUser(testUser);
         given(reviewRepository.findById(1L)).willReturn(Optional.of(testReview));
         given(reviewRepository.save(any(Review.class))).willReturn(testReview);
-        given(reviewImageService.deleteSelectedImages(1L, List.of())).willReturn(List.of());
+
+        // 빈 deleteImageIds로 설정하여 deleteSelectedImages 호출 방지
+        ReviewUpdateRequest requestNoDelete = ReviewUpdateRequest.builder()
+                .title("수정된 제목")
+                .rating(5)
+                .sizeFit(SizeFit.BIG)
+                .cushion(Cushion.SOFT)
+                .stability(Stability.VERY_STABLE)
+                .content("수정된 내용입니다.")
+                .deleteImageIds(List.of()) // 빈 리스트
+                .build();
+
         given(reviewImageService.getActiveImageCount(1L)).willReturn(0);
 
         // 이미지 업로드 실패 시뮬레이션
@@ -316,7 +327,7 @@ class ReviewUpdateServiceTest {
                 .willThrow(new RuntimeException("이미지 업로드 실패"));
 
         // when
-        ReviewUpdateResponse response = reviewService.updateReview(1L, updateRequest, newImages);
+        ReviewUpdateResponse response = reviewService.updateReview(1L, requestNoDelete, newImages);
 
         // then
         assertThat(response.getReviewId()).isEqualTo(1L);
@@ -353,6 +364,199 @@ class ReviewUpdateServiceTest {
 
         // then
         assertThat(canUpdate).isFalse();
+    }
+
+    // =================== 새로운 테스트 케이스들 ===================
+
+    @Test
+    @DisplayName("빈 deleteImageIds를 가진 요청도 정상 처리된다")
+    void updateReview_WithEmptyDeleteImageIds() {
+        // given
+        mockSecurityContextForUser(testUser);
+        given(reviewRepository.findById(1L)).willReturn(Optional.of(testReview));
+        given(reviewRepository.save(any(Review.class))).willReturn(testReview);
+
+        // ✅ 실제 ReviewService 로직: 빈 리스트일 때는 deleteSelectedImages 호출하지 않음
+        // 대신 getActiveImageCount만 호출됨 (287라인)
+        given(reviewImageService.getActiveImageCount(1L)).willReturn(2);
+
+        // 빈 deleteImageIds를 가진 요청 생성
+        ReviewUpdateRequest requestWithEmptyDeleteIds = ReviewUpdateRequest.builder()
+                .title("수정된 제목")
+                .rating(5)
+                .sizeFit(SizeFit.BIG)
+                .cushion(Cushion.SOFT)
+                .stability(Stability.VERY_STABLE)
+                .content("수정된 내용입니다.")
+                .deleteImageIds(List.of()) // 빈 리스트
+                .build();
+
+        // when
+        ReviewUpdateResponse response = reviewService.updateReview(1L, requestWithEmptyDeleteIds, null);
+
+        // then
+        assertThat(response.getReviewId()).isEqualTo(1L);
+        assertThat(response.getMessage()).isEqualTo("리뷰가 성공적으로 수정되었습니다.");
+        assertThat(response.getDeletedImageIds()).isEmpty(); // 빈 리스트 반환
+        assertThat(response.getTotalImageCount()).isEqualTo(2);
+
+        // ✅ 핵심: 빈 리스트일 때는 deleteSelectedImages가 호출되지 않음
+        // 실제 로직: if (request.getDeleteImageIds() != null && !request.getDeleteImageIds().isEmpty())
+        verify(reviewImageService, never()).deleteSelectedImages(any(), any());
+
+        // 실제로 호출되는 메서드들만 검증
+        verify(reviewImageService, times(1)).getActiveImageCount(1L);
+        verify(testReview).updateReviewInfo(
+                "수정된 제목",
+                5,
+                "수정된 내용입니다.",
+                SizeFit.BIG,
+                Cushion.SOFT,
+                Stability.VERY_STABLE
+        );
+        verify(reviewRepository).save(testReview);
+    }
+
+    @Test
+    @DisplayName("null deleteImageIds를 가진 요청도 정상 처리된다")
+    void updateReview_WithNullDeleteImageIds() {
+        // given
+        mockSecurityContextForUser(testUser);
+        given(reviewRepository.findById(1L)).willReturn(Optional.of(testReview));
+        given(reviewRepository.save(any(Review.class))).willReturn(testReview);
+        given(reviewImageService.getActiveImageCount(1L)).willReturn(3);
+
+        // null deleteImageIds를 가진 요청 생성
+        ReviewUpdateRequest requestWithNullDeleteIds = ReviewUpdateRequest.builder()
+                .title("수정된 제목")
+                .rating(4)
+                .sizeFit(SizeFit.NORMAL)
+                .cushion(Cushion.MEDIUM)
+                .stability(Stability.STABLE)
+                .content("수정된 내용입니다.")
+                .deleteImageIds(null) // null
+                .build();
+
+        // when
+        ReviewUpdateResponse response = reviewService.updateReview(1L, requestWithNullDeleteIds, null);
+
+        // then
+        assertThat(response.getReviewId()).isEqualTo(1L);
+        assertThat(response.getMessage()).isEqualTo("리뷰가 성공적으로 수정되었습니다.");
+        assertThat(response.getDeletedImageIds()).isEmpty(); // 빈 리스트 반환
+        assertThat(response.getTotalImageCount()).isEqualTo(3);
+
+        // ✅ null일 때도 deleteSelectedImages가 호출되지 않음
+        verify(reviewImageService, never()).deleteSelectedImages(any(), any());
+
+        // 실제로 호출되는 메서드들만 검증
+        verify(reviewImageService, times(1)).getActiveImageCount(1L);
+        verify(testReview).updateReviewInfo(
+                "수정된 제목",
+                4,
+                "수정된 내용입니다.",
+                SizeFit.NORMAL,
+                Cushion.MEDIUM,
+                Stability.STABLE
+        );
+        verify(reviewRepository).save(testReview);
+    }
+
+    @Test
+    @DisplayName("실제 deleteImageIds가 있을 때만 deleteSelectedImages가 호출된다")
+    void updateReview_WithActualDeleteImageIds() {
+        // given
+        mockSecurityContextForUser(testUser);
+        given(reviewRepository.findById(1L)).willReturn(Optional.of(testReview));
+        given(reviewRepository.save(any(Review.class))).willReturn(testReview);
+
+        List<Long> deleteImageIds = List.of(1L, 2L);
+        given(reviewImageService.deleteSelectedImages(1L, deleteImageIds))
+                .willReturn(List.of(1L, 2L));
+        given(reviewImageService.getActiveImageCount(1L)).willReturn(1);
+
+        ReviewUpdateRequest requestWithDeleteIds = ReviewUpdateRequest.builder()
+                .title("수정된 제목")
+                .rating(3)
+                .sizeFit(SizeFit.SMALL)
+                .cushion(Cushion.FIRM)
+                .stability(Stability.UNSTABLE)
+                .content("수정된 내용입니다.")
+                .deleteImageIds(deleteImageIds) // 실제 값
+                .build();
+
+        // when
+        ReviewUpdateResponse response = reviewService.updateReview(1L, requestWithDeleteIds, null);
+
+        // then
+        assertThat(response.getReviewId()).isEqualTo(1L);
+        assertThat(response.getDeletedImageIds()).containsExactly(1L, 2L);
+        assertThat(response.getTotalImageCount()).isEqualTo(1);
+
+        // ✅ 이제 deleteSelectedImages가 호출되어야 함
+        verify(reviewImageService, times(1)).deleteSelectedImages(1L, deleteImageIds);
+        verify(reviewImageService, times(1)).getActiveImageCount(1L);
+        verify(testReview).updateReviewInfo(
+                "수정된 제목",
+                3,
+                "수정된 내용입니다.",
+                SizeFit.SMALL,
+                Cushion.FIRM,
+                Stability.UNSTABLE
+        );
+        verify(reviewRepository).save(testReview);
+    }
+
+    @Test
+    @DisplayName("새 이미지만 추가하는 경우 (삭제 없음)")
+    void updateReview_OnlyAddNewImages() {
+        // given
+        MultipartFile newImage = mock(MultipartFile.class);
+        List<MultipartFile> newImages = List.of(newImage);
+
+        mockSecurityContextForUser(testUser);
+        given(reviewRepository.findById(1L)).willReturn(Optional.of(testReview));
+        given(reviewRepository.save(any(Review.class))).willReturn(testReview);
+        given(reviewImageService.getActiveImageCount(1L)).willReturn(4);
+
+        // GCP Storage 응답 모킹
+        GcpStorageService.UploadResult uploadResult = mock(GcpStorageService.UploadResult.class);
+        given(uploadResult.getFilePath()).willReturn("reviews/new-image.jpg");
+        given(uploadResult.getOriginalFilename()).willReturn("new-image.jpg");
+        given(uploadResult.getStoredFilename()).willReturn("uuid-new-image.jpg");
+        given(uploadResult.getFileSize()).willReturn(1024L);
+        given(uploadResult.getContentType()).willReturn("image/jpeg");
+
+        given(gcpStorageService.uploadFilesWithDetails(newImages, "reviews"))
+                .willReturn(List.of(uploadResult));
+        given(reviewImageRepository.save(any())).willReturn(mock());
+
+        ReviewUpdateRequest request = ReviewUpdateRequest.builder()
+                .title("새 이미지 추가")
+                .rating(5)
+                .sizeFit(SizeFit.NORMAL)
+                .cushion(Cushion.MEDIUM)
+                .stability(Stability.STABLE)
+                .content("새 이미지를 추가했습니다.")
+                .deleteImageIds(null) // 삭제 없음
+                .build();
+
+        // when
+        ReviewUpdateResponse response = reviewService.updateReview(1L, request, newImages);
+
+        // then
+        assertThat(response.getReviewId()).isEqualTo(1L);
+        assertThat(response.getNewImageUrls()).containsExactly("reviews/new-image.jpg");
+        assertThat(response.getDeletedImageIds()).isEmpty(); // 삭제 없음
+        assertThat(response.getTotalImageCount()).isEqualTo(4);
+
+        // deleteSelectedImages는 호출되지 않음 (null이므로)
+        verify(reviewImageService, never()).deleteSelectedImages(any(), any());
+        verify(reviewImageService, times(1)).getActiveImageCount(1L);
+
+        // 새 이미지 업로드는 호출됨
+        verify(gcpStorageService).uploadFilesWithDetails(newImages, "reviews");
+        verify(reviewImageRepository).save(any());
     }
 
     /**
