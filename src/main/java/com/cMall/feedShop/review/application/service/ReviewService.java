@@ -75,6 +75,13 @@ public class ReviewService {
         this.reviewImageRepository = reviewImageRepository;
     }
 
+    /**
+     * 리뷰 생성 (DTO 불변성 적용)
+     *
+     * @param request 불변 리뷰 생성 요청 DTO
+     * @param images 업로드할 이미지 파일들 (별도 파라미터)
+     * @return 생성된 리뷰 응답
+     */
     @Transactional
     public ReviewCreateResponse createReview(ReviewCreateRequest request, List<MultipartFile> images) {
         // SecurityContext에서 현재 로그인한 사용자 정보 가져오기
@@ -145,7 +152,7 @@ public class ReviewService {
         // 중복 리뷰 검증
         duplicationValidator.validateNoDuplicateActiveReview(user.getId(), product.getProductId());
 
-        // Review 객체를 먼저 생성하고 저장
+        // ✅ DTO에서 직접 값 추출 (불변 필드)
         Review review = Review.builder()
                 .title(request.getTitle())
                 .rating(request.getRating())
@@ -191,11 +198,11 @@ public class ReviewService {
             }
         }
 
-        // 기존 이미지 처리
-        if (request.getImages() != null && !request.getImages().isEmpty()) {
-            reviewImageService.saveReviewImages(savedReview, request.getImages());
+        // ✅ 로컬 이미지 처리도 별도 파라미터로 처리
+        if (images != null && !images.isEmpty()) {
+            reviewImageService.saveReviewImages(savedReview, images);
             log.info("리뷰 이미지 업로드 완료 (기존 방식): reviewId={}, imageCount={}",
-                    savedReview.getReviewId(), request.getImages().size());
+                    savedReview.getReviewId(), images.size());
         }
 
         return ReviewCreateResponse.builder()
@@ -208,7 +215,12 @@ public class ReviewService {
     // =================== 리뷰 수정 메서드 ===================
 
     /**
-     * 리뷰 수정 (이미지 포함)
+     * 리뷰 수정 (이미지 포함) - DTO 불변성 적용
+     *
+     * @param reviewId 수정할 리뷰 ID
+     * @param request 불변 리뷰 수정 요청 DTO
+     * @param newImages 새로 추가할 이미지들 (별도 파라미터)
+     * @return 수정 결과 응답
      */
     @Transactional
     public ReviewUpdateResponse updateReview(Long reviewId, ReviewUpdateRequest request,
@@ -226,7 +238,7 @@ public class ReviewService {
         // 3. 수정 권한 확인
         validateUpdatePermission(review, currentUser.getId());
 
-        // 4. 리뷰 기본 정보 수정
+        // 4. ✅ DTO에서 직접 값 추출하여 리뷰 기본 정보 수정
         review.updateReviewInfo(
                 request.getTitle(),
                 request.getRating(),
@@ -241,13 +253,13 @@ public class ReviewService {
         List<Long> deletedImageIds = new ArrayList<>();
 
         try {
-            // 기존 이미지 삭제 처리
+            // ✅ DTO에서 삭제할 이미지 ID 목록 추출
             if (request.getDeleteImageIds() != null && !request.getDeleteImageIds().isEmpty()) {
                 deletedImageIds = reviewImageService.deleteSelectedImages(reviewId, request.getDeleteImageIds());
                 log.info("이미지 삭제 완료: reviewId={}, 삭제된 개수={}", reviewId, deletedImageIds.size());
             }
 
-            // 새 이미지 추가 처리
+            // 새 이미지 추가 처리 (별도 파라미터)
             if (newImages != null && !newImages.isEmpty()) {
                 newImageUrls = addNewImages(review, newImages);
                 log.info("새 이미지 추가 완료: reviewId={}, 추가된 개수={}", reviewId, newImageUrls.size());
