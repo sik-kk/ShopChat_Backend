@@ -53,7 +53,6 @@ public class ReviewService {
     private final ReviewImageService reviewImageService;
     private final ReviewImageRepository reviewImageRepository;
 
-
     // 선택적 의존성 주입으로 변경 (GCP만)
     @Autowired(required = false)
     private GcpStorageService gcpStorageService;
@@ -75,6 +74,7 @@ public class ReviewService {
         this.reviewImageRepository = reviewImageRepository;
 
     }
+
 
     /**
      * 리뷰 생성 (DTO 불변성 적용)
@@ -271,12 +271,7 @@ public class ReviewService {
             // 이미지 처리 실패 시에도 리뷰 텍스트 수정은 유지하고 경고만 로그
             log.warn("이미지 처리는 실패했지만 리뷰 내용 수정은 완료되었습니다.");
         }
-
-        // 6. 리뷰 저장
-        Review updatedReview = reviewRepository.save(review);
-
-        // 7. 최종 이미지 개수 확인
-        int totalImageCount = reviewImageService.getActiveImageCount(reviewId);
+totalImageCount = reviewImageService.getActiveImageCount(reviewId);
 
         log.info("리뷰 수정 완료: reviewId={}, 총 이미지 수={}", reviewId, totalImageCount);
         // GitHub CI 빌드 오류 해결을 위한 동기화
@@ -326,7 +321,6 @@ public class ReviewService {
         if (!review.isActive()) {
             throw new BusinessException(ErrorCode.REVIEW_NOT_FOUND, "삭제되었거나 숨김 처리된 리뷰는 수정할 수 없습니다.");
         }
-
         // 본인이 작성한 리뷰인지 확인
         if (!review.isOwnedBy(userId)) {
             throw new ReviewAccessDeniedException("본인이 작성한 리뷰만 수정할 수 있습니다.");
@@ -636,6 +630,7 @@ public class ReviewService {
         } catch (Exception e) {
             log.error("리뷰 수정 가능 여부 확인 실패: reviewId={}, userId={}", reviewId, userId, e);
             return false;
+
         }
     }
 

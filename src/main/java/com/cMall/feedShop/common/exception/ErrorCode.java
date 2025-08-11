@@ -53,6 +53,8 @@ public enum ErrorCode {
     PRODUCT_IMAGE_NOT_FOUND(404, "P006", "존재하지 않는 상품 이미지입니다."),
     DUPLICATE_PRODUCT_NAME(409, "P007", "이미 존재하는 상품 이름입니다."),
     INVALID_PRODUCT_FILTER_PRICE_RANGE(400, "P008", "잘못된 가격 범위입니다. 최소 가격은 최대 가격보다 작거나 같아야 합니다."),
+    PRODUCT_NOT_BELONG_TO_STORE(403, "P009", "해당 상품은 현재 스토어에 속하지 않습니다."),
+    DUPLICATE_PRODUCT_OPTION(409, "P010", "이미 존재하는 상품 옵션입니다."),
 
     // 장바구니
     ZERO_QUANTITY(400, "CA001", "수량은 1개 이상이어야 합니다."),
@@ -79,6 +81,7 @@ public enum ErrorCode {
     REVIEW_ALREADY_DELETED(409, "R005", "이미 삭제된 리뷰입니다."),
     REVIEW_DELETE_FORBIDDEN(403, "R006", "해당 리뷰를 삭제할 권한이 없습니다."),
     REVIEW_DELETION_FAILED(500, "R007", "리뷰 삭제 중 오류가 발생했습니다."),
+
   
     // 이벤트 (현재 구현된 읽기 전용 API에서만 사용)
     EVENT_NOT_FOUND(404, "E001", "이벤트를 찾을 수 없습니다."),

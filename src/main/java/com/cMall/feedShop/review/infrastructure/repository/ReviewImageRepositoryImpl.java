@@ -71,4 +71,5 @@ public class ReviewImageRepositoryImpl implements ReviewImageRepository {
     public List<ReviewImage> findByReviewReviewIdAndDeletedFalse(Long reviewId) {
         return jpaRepository.findByReviewReviewIdAndDeletedFalse(reviewId);
     }
+
 }
