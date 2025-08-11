@@ -8,8 +8,12 @@ import com.cMall.feedShop.review.application.dto.request.ReviewCreateRequest;
 import com.cMall.feedShop.review.application.dto.request.ReviewUpdateRequest;
 import com.cMall.feedShop.review.application.dto.response.ReviewCreateResponse;
 import com.cMall.feedShop.review.application.dto.response.ReviewUpdateResponse;
+import com.cMall.feedShop.review.application.dto.response.ReviewDeleteResponse;
+import com.cMall.feedShop.review.application.dto.response.ReviewImageDeleteResponse;
+import com.cMall.feedShop.review.application.dto.response.ReviewResponse;
 import com.cMall.feedShop.review.application.service.ReviewService;
 import com.cMall.feedShop.review.application.service.ReviewImageService;
+import com.cMall.feedShop.user.domain.repository.UserRepository;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -26,7 +30,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Slf4j
@@ -38,6 +45,7 @@ public class ReviewUserController {
 
     private final ReviewService reviewService;
     private final ReviewImageService reviewImageService;
+    private final UserRepository userRepository;
 
     @PostMapping
     @PreAuthorize("isAuthenticated()")
@@ -178,16 +186,142 @@ public class ReviewUserController {
         }
     }
 
-    /*
+    // ============= 리뷰 삭제 API =============
+
     @DeleteMapping("/{reviewId}")
     @PreAuthorize("isAuthenticated()")
     @ApiResponseFormat(message = "리뷰가 성공적으로 삭제되었습니다.")
-    @Operation(summary = "리뷰 삭제", description = "자신이 작성한 리뷰를 삭제합니다.")
-    public ApiResponse<Void> deleteReview(@PathVariable Long reviewId) {
-        reviewService.deleteReview(reviewId);
-        return ApiResponse.success(null);
+    @Operation(summary = "리뷰 삭제", description = "리뷰와 연관된 모든 이미지를 함께 삭제합니다.")
+    public ApiResponse<ReviewDeleteResponse> deleteReview(@PathVariable Long reviewId) {
+        
+        log.info("리뷰 삭제 API 호출: reviewId={}", reviewId);
+        
+        ReviewDeleteResponse response = reviewService.deleteReview(reviewId);
+        
+        log.info("리뷰 삭제 API 완료: reviewId={}, 삭제된 이미지 수={}", 
+                reviewId, response.getDeletedImageCount());
+        
+        return ApiResponse.success(response);
     }
 
+    // ============= 리뷰 이미지 삭제 API =============
+
+    @DeleteMapping("/{reviewId}/images")
+    @PreAuthorize("isAuthenticated()")
+    @ApiResponseFormat(message = "선택된 이미지들이 성공적으로 삭제되었습니다.")
+    @Operation(summary = "리뷰 이미지 일괄 삭제", description = "리뷰의 특정 이미지들을 삭제합니다.")
+    public ApiResponse<ReviewImageDeleteResponse> deleteReviewImages(
+            @PathVariable Long reviewId,
+            @RequestBody @Valid DeleteImagesRequest request) {
+        
+        log.info("리뷰 이미지 일괄 삭제 API 호출: reviewId={}, imageIds={}", 
+                reviewId, request.getImageIds());
+        
+        ReviewImageDeleteResponse response = reviewService.deleteReviewImages(reviewId, request.getImageIds());
+        
+        log.info("리뷰 이미지 일괄 삭제 API 완료: reviewId={}, 삭제된 이미지 수={}", 
+                reviewId, response.getDeletedImageCount());
+        
+        return ApiResponse.success(response);
+    }
+
+
+    @DeleteMapping("/{reviewId}/images/all")
+    @PreAuthorize("isAuthenticated()")
+    @ApiResponseFormat(message = "리뷰의 모든 이미지가 성공적으로 삭제되었습니다.")
+    @Operation(summary = "리뷰 이미지 전체 삭제", description = "리뷰의 모든 이미지를 삭제합니다. (리뷰 텍스트는 유지)")
+    public ApiResponse<ReviewImageDeleteResponse> deleteAllReviewImages(@PathVariable Long reviewId) {
+        
+        log.info("리뷰 이미지 전체 삭제 API 호출: reviewId={}", reviewId);
+        
+        ReviewImageDeleteResponse response = reviewService.deleteAllReviewImages(reviewId);
+        
+        log.info("리뷰 이미지 전체 삭제 API 완료: reviewId={}, 삭제된 이미지 수={}", 
+                reviewId, response.getDeletedImageCount());
+        
+        return ApiResponse.success(response);
+    }
+
+    // ============= 요청 DTO =============
+
+    @Getter
+    @NoArgsConstructor
+    public static class DeleteImagesRequest {
+        
+        @NotNull(message = "삭제할 이미지 ID 목록은 필수입니다.")
+        private List<@NotNull Long> imageIds;
+
+        public DeleteImagesRequest(List<Long> imageIds) {
+            this.imageIds = imageIds;
+        }
+    }
+
+    // ============= 사용자 리뷰 조회/통계 API =============
+
+    @GetMapping("/my/deleted")
+    @PreAuthorize("isAuthenticated()")
+    @ApiResponseFormat(message = "삭제된 리뷰 목록을 조회했습니다.")
+    @Operation(summary = "내가 삭제한 리뷰 목록 조회", description = "현재 로그인한 사용자가 삭제한 리뷰들을 조회합니다.")
+    public ApiResponse<List<ReviewResponse>> getMyDeletedReviews() {
+        
+        // 현재 사용자 ID 가져오기
+        Long currentUserId = getCurrentUserId();
+        
+        log.info("내가 삭제한 리뷰 목록 조회 API 호출: userId={}", currentUserId);
+        
+        List<ReviewResponse> deletedReviews = reviewService.getUserDeletedReviews(currentUserId);
+        
+        log.info("내가 삭제한 리뷰 목록 조회 완료: userId={}, 개수={}", currentUserId, deletedReviews.size());
+        
+        return ApiResponse.success(deletedReviews);
+    }
+
+    @GetMapping("/my/deleted/count")
+    @PreAuthorize("isAuthenticated()")
+    @ApiResponseFormat(message = "삭제된 리뷰 개수를 조회했습니다.")
+    @Operation(summary = "내가 삭제한 리뷰 개수 조회", description = "현재 로그인한 사용자가 삭제한 리뷰 개수를 조회합니다.")
+    public ApiResponse<UserDeletedReviewCountResponse> getMyDeletedReviewCount() {
+        
+        Long currentUserId = getCurrentUserId();
+        
+        log.info("내가 삭제한 리뷰 개수 조회 API 호출: userId={}", currentUserId);
+        
+        Long deletedCount = reviewService.getUserDeletedReviewCount(currentUserId);
+        
+        UserDeletedReviewCountResponse response = new UserDeletedReviewCountResponse(currentUserId, deletedCount);
+        
+        log.info("내가 삭제한 리뷰 개수 조회 완료: userId={}, 개수={}", currentUserId, deletedCount);
+        
+        return ApiResponse.success(response);
+    }
+
+    // ============= 헬퍼 메서드 =============
+
+    private Long getCurrentUserId() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        
+        if (authentication == null || !authentication.isAuthenticated()) {
+            throw new BusinessException(ErrorCode.UNAUTHORIZED, "로그인이 필요합니다.");
+        }
+        
+        String userEmail = authentication.getName();
+        
+        // UserRepository를 통해 사용자 조회
+        return userRepository.findByEmail(userEmail)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND, "사용자를 찾을 수 없습니다."))
+                .getId();
+    }
+
+    // ============= 응답 DTO =============
+
+    @Getter
+    @lombok.AllArgsConstructor
+    @lombok.NoArgsConstructor
+    public static class UserDeletedReviewCountResponse {
+        private Long userId;
+        private Long deletedReviewCount;
+    }
+    /*
     @PostMapping("/{reviewId}/points")
     @PreAuthorize("isAuthenticated()")
     @ApiResponseFormat(message = "리뷰 추천이 완료되었습니다.")
