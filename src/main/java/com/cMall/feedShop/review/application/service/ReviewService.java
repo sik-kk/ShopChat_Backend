@@ -279,6 +279,7 @@ public class ReviewService {
         int totalImageCount = reviewImageService.getActiveImageCount(reviewId);
 
         log.info("리뷰 수정 완료: reviewId={}, 총 이미지 수={}", reviewId, totalImageCount);
+        // GitHub CI 빌드 오류 해결을 위한 동기화
 
         return ReviewUpdateResponse.of(
                 updatedReview.getReviewId(),
