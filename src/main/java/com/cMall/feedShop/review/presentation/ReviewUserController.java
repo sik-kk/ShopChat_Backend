@@ -8,12 +8,15 @@ import com.cMall.feedShop.review.application.dto.request.ReviewCreateRequest;
 import com.cMall.feedShop.review.application.dto.request.ReviewUpdateRequest;
 import com.cMall.feedShop.review.application.dto.response.ReviewCreateResponse;
 import com.cMall.feedShop.review.application.dto.response.ReviewUpdateResponse;
+
 import com.cMall.feedShop.review.application.dto.response.ReviewDeleteResponse;
 import com.cMall.feedShop.review.application.dto.response.ReviewImageDeleteResponse;
 import com.cMall.feedShop.review.application.dto.response.ReviewResponse;
 import com.cMall.feedShop.review.application.service.ReviewService;
 import com.cMall.feedShop.review.application.service.ReviewImageService;
 import com.cMall.feedShop.user.domain.repository.UserRepository;
+
+
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -30,6 +33,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 
@@ -46,6 +50,7 @@ public class ReviewUserController {
     private final ReviewService reviewService;
     private final ReviewImageService reviewImageService;
     private final UserRepository userRepository;
+
 
     @PostMapping
     @PreAuthorize("isAuthenticated()")
@@ -99,6 +104,7 @@ public class ReviewUserController {
     @ApiResponseFormat(message = "리뷰 제목이 성공적으로 수정되었습니다.")
     @Operation(summary = "리뷰 제목 수정", description = "리뷰의 제목만 수정합니다.")
     public ApiResponse<Void> updateReviewTitle(
+
             @PathVariable Long reviewId,
             @RequestBody @Valid UpdateTitleRequest request) {
 
@@ -185,6 +191,7 @@ public class ReviewUserController {
             this.content = content;
         }
     }
+
 
     // ============= 리뷰 삭제 API =============
 
