@@ -40,6 +40,10 @@ import java.util.List;
 import java.time.LocalDateTime;
 import java.util.Optional;
 import java.util.stream.Collectors;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
 
 @Slf4j
 @Service
@@ -970,11 +974,14 @@ public class ReviewService {
     }
 
     // ============= 필요한 응답 DTO들 (내부 클래스) =============
-    
-    @lombok.Getter
-    @lombok.Builder
-    @lombok.NoArgsConstructor
-    @lombok.AllArgsConstructor
+
+    /**
+     * 상품별 리뷰 통계 응답 DTO
+     */
+    @Getter
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
     public static class ReviewStatsResponse {
         private Long productId;
         private Long activeReviewCount;
@@ -984,11 +991,14 @@ public class ReviewService {
         private Double deletionRate;
         private LocalDateTime generatedAt;
     }
-    
-    @lombok.Getter
-    @lombok.Builder
-    @lombok.NoArgsConstructor
-    @lombok.AllArgsConstructor
+
+    /**
+     * 기간별 삭제된 리뷰 통계 응답 DTO
+     */
+    @Getter
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
     public static class PeriodReviewStatsResponse {
         private LocalDateTime startDate;
         private LocalDateTime endDate;
@@ -997,11 +1007,14 @@ public class ReviewService {
         private Long uniqueProductCount;
         private Double averageRatingOfDeleted;
         private List<DeletedReviewSummary> deletedReviews;
-        
-        @lombok.Getter
-        @lombok.Builder
-        @lombok.NoArgsConstructor
-        @lombok.AllArgsConstructor
+
+        /**
+         * 삭제된 리뷰 요약 정보
+         */
+        @Getter
+        @Builder
+        @NoArgsConstructor
+        @AllArgsConstructor
         public static class DeletedReviewSummary {
             private Long reviewId;
             private Long userId;
