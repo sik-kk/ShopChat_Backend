@@ -275,7 +275,7 @@ public class ReviewService {
             // 이미지 처리 실패 시에도 리뷰 텍스트 수정은 유지하고 경고만 로그
             log.warn("이미지 처리는 실패했지만 리뷰 내용 수정은 완료되었습니다.");
         }
-
+        
         // 6. 리뷰 저장
         Review updatedReview = reviewRepository.save(review);
 
@@ -1025,3 +1025,4 @@ public class ReviewService {
         }
     }
 }
+
