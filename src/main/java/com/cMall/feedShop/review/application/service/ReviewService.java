@@ -271,7 +271,12 @@ public class ReviewService {
             // 이미지 처리 실패 시에도 리뷰 텍스트 수정은 유지하고 경고만 로그
             log.warn("이미지 처리는 실패했지만 리뷰 내용 수정은 완료되었습니다.");
         }
-totalImageCount = reviewImageService.getActiveImageCount(reviewId);
+
+        // 6. 리뷰 저장
+        Review updatedReview = reviewRepository.save(review);
+
+        // 7. 최종 이미지 개수 확인
+        int totalImageCount = reviewImageService.getActiveImageCount(reviewId);
 
         log.info("리뷰 수정 완료: reviewId={}, 총 이미지 수={}", reviewId, totalImageCount);
         // GitHub CI 빌드 오류 해결을 위한 동기화
