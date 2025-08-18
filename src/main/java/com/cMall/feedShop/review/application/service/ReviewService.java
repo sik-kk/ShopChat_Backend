@@ -91,8 +91,8 @@ public class ReviewService {
      */
     @Transactional
     public ReviewCreateResponse createReview(ReviewCreateRequest request, List<MultipartFile> images) {
-        // 임시로 테스트용 사용자 사용 (개발 환경)
-        User user = getTestUser();
+        // 현재 로그인한 사용자 가져오기
+        User user = getCurrentUserFromSecurity();
 
         // Product 조회
         Product product = productRepository.findById(request.getProductId())
@@ -243,11 +243,8 @@ public class ReviewService {
     private User getCurrentUserFromSecurity() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
 
-        // 팀원 시연용 임시 인증 우회
-        if (authentication == null || !authentication.isAuthenticated() || "anonymousUser".equals(authentication.getName())) {
-            log.warn("⚠️ 개발 환경: 인증 우회하여 테스트 사용자(ID=1) 사용");
-            return userRepository.findById(1L)
-                    .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND, "테스트 사용자를 찾을 수 없습니다."));
+        if (authentication == null || !authentication.isAuthenticated()) {
+            throw new BusinessException(ErrorCode.UNAUTHORIZED, "로그인이 필요합니다.");
         }
 
         String userEmail = getUserEmailFromAuthentication(authentication);

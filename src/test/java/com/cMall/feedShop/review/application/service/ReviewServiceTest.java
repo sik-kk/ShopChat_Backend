@@ -83,6 +83,9 @@ class ReviewServiceTest {
 
     @Mock
     private ReviewImageService reviewImageService;
+    
+    @Mock
+    private com.cMall.feedShop.review.domain.repository.ReviewImageRepository reviewImageRepository;
 
     @Mock
     private GcpStorageService gcpStorageService;
@@ -197,7 +200,7 @@ class ReviewServiceTest {
             // when & then
             assertThatThrownBy(() -> reviewService.createReview(createRequest, null))
                     .isInstanceOf(BusinessException.class)
-                    .hasMessageContaining("인증이 필요합니다");
+                    .hasMessageContaining("로그인이 필요합니다");
         }
     }
 
@@ -538,6 +541,6 @@ class ReviewServiceTest {
         given(securityContext.getAuthentication()).willReturn(authentication);
         given(authentication.isAuthenticated()).willReturn(true);
         given(authentication.getName()).willReturn("test@test.com");
-        given(authentication.getPrincipal()).willReturn("test@test.com");
+        given(authentication.getPrincipal()).willReturn("test@test.com"); // String으로 설정하면 getName()이 호출됨
     }
 }
