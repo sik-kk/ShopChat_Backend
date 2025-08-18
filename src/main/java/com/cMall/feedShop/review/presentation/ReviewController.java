@@ -13,7 +13,16 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.UrlResource;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
+import java.net.MalformedURLException;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 
 @RestController
 @RequestMapping("/api/reviews")
@@ -69,6 +78,54 @@ public class ReviewController {
             @Parameter(description = "상품 ID") @PathVariable Long productId) {
         Review3ElementStatisticsResponse response = statisticsService.getProductStatistics(productId);
         return com.cMall.feedShop.common.dto.ApiResponse.success(response);
+    }
+
+    @GetMapping("/images/{year}/{month}/{day}/{filename:.+}")
+    @Operation(summary = "리뷰 이미지 서빙", description = "리뷰 이미지 파일을 서빙합니다.")
+    public ResponseEntity<Resource> serveReviewImage(
+            @PathVariable String year,
+            @PathVariable String month, 
+            @PathVariable String day,
+            @PathVariable String filename) {
+        try {
+            Path filePath = Paths.get("uploads/reviews")
+                    .resolve(year)
+                    .resolve(month)
+                    .resolve(day)
+                    .resolve(filename);
+            Resource resource = new UrlResource(filePath.toUri());
+            
+            if (resource.exists() || resource.isReadable()) {
+                String contentType = getContentType(filename);
+                return ResponseEntity.ok()
+                        .header(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, "*")
+                        .header(HttpHeaders.ACCESS_CONTROL_ALLOW_METHODS, "GET")
+                        .header(HttpHeaders.ACCESS_CONTROL_ALLOW_HEADERS, "*")
+                        .contentType(MediaType.parseMediaType(contentType))
+                        .body(resource);
+            } else {
+                return ResponseEntity.notFound().build();
+            }
+        } catch (MalformedURLException e) {
+            return ResponseEntity.badRequest().build();
+        }
+    }
+    
+    private String getContentType(String filename) {
+        String extension = filename.substring(filename.lastIndexOf(".") + 1).toLowerCase();
+        switch (extension) {
+            case "jpg":
+            case "jpeg":
+                return "image/jpeg";
+            case "png":
+                return "image/png";
+            case "gif":
+                return "image/gif";
+            case "webp":
+                return "image/webp";
+            default:
+                return "application/octet-stream";
+        }
     }
 
 }
