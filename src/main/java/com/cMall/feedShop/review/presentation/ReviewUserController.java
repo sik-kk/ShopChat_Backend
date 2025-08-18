@@ -68,7 +68,7 @@ public class ReviewUserController {
     // ============= 리뷰 수정 API =============
 
     @PutMapping("/{reviewId}")
-    @PreAuthorize("isAuthenticated()")
+    // @PreAuthorize("isAuthenticated()") // 팀원 시연용 임시 비활성화
     @ApiResponseFormat(message = "리뷰가 성공적으로 수정되었습니다.")
     @Operation(summary = "리뷰 수정", description = "기존 리뷰를 수정합니다.")
     public ApiResponse<ReviewUpdateResponse> updateReview(
@@ -125,7 +125,7 @@ public class ReviewUserController {
     // ============= 리뷰 삭제 API =============
 
     @DeleteMapping("/{reviewId}")
-    @PreAuthorize("isAuthenticated()")
+    // @PreAuthorize("isAuthenticated()") // 팀원 시연용 임시 비활성화
     @ApiResponseFormat(message = "리뷰가 성공적으로 삭제되었습니다.")
     @Operation(summary = "리뷰 삭제", description = "리뷰와 연관된 모든 이미지를 함께 삭제합니다.")
     public ApiResponse<ReviewDeleteResponse> deleteReview(@PathVariable Long reviewId) {
