@@ -19,6 +19,9 @@ import com.cMall.feedShop.review.domain.ReviewImage;
 import com.cMall.feedShop.review.domain.repository.ReviewRepository;
 import com.cMall.feedShop.review.domain.repository.ReviewImageRepository;
 import com.cMall.feedShop.review.domain.service.ReviewDuplicationValidator;
+import com.cMall.feedShop.review.domain.enums.Cushion;
+import com.cMall.feedShop.review.domain.enums.SizeFit;
+import com.cMall.feedShop.review.domain.enums.Stability;
 import com.cMall.feedShop.user.domain.model.User;
 import com.cMall.feedShop.user.domain.repository.UserRepository;
 import jakarta.persistence.EntityNotFoundException;
@@ -540,6 +543,51 @@ public class ReviewService {
         } catch (Exception e) {
             log.error("상품 리뷰 목록 조회 중 오류 발생: 상품ID={}, 에러={}", productId, e.getMessage(), e);
             throw new RuntimeException("리뷰 목록 조회에 실패했습니다: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * 필터링이 적용된 상품별 리뷰 목록 조회
+     */
+    @Transactional(readOnly = true)
+    public ReviewListResponse getProductReviewsWithFilters(Long productId, int page, int size, String sort, 
+                                                          Integer rating, String sizeFit, String cushion, String stability) {
+        log.info("필터링된 상품 리뷰 목록 조회 시작: 상품ID={}, 평점={}, 착용감={}, 쿠션감={}, 안정성={}", 
+                productId, rating, sizeFit, cushion, stability);
+        
+        try {
+            // 페이지 검증 및 기본값 설정
+            page = Math.max(0, page);
+            size = (size < 1 || size > 100) ? 20 : size;
+
+            Pageable pageable = PageRequest.of(page, size);
+
+            // 문자열을 enum으로 변환
+            SizeFit sizeFitEnum = sizeFit != null ? SizeFit.valueOf(sizeFit.toUpperCase()) : null;
+            Cushion cushionEnum = cushion != null ? Cushion.valueOf(cushion.toUpperCase()) : null;
+            Stability stabilityEnum = stability != null ? Stability.valueOf(stability.toUpperCase()) : null;
+
+            Page<Review> reviewPage = reviewRepository.findActiveReviewsByProductIdWithFilters(
+                    productId, rating, sizeFitEnum, cushionEnum, stabilityEnum, pageable);
+
+            List<ReviewResponse> reviewResponses = convertReviewsToResponses(reviewPage.getContent());
+            Page<ReviewResponse> reviewResponsePage = new PageImpl<>(
+                    reviewResponses, pageable, reviewPage.getTotalElements());
+
+            // 통계 정보 조회 (전체 리뷰 기준)
+            Double averageRating = reviewRepository.findAverageRatingByProductId(productId);
+            Long totalReviews = reviewRepository.countActiveReviewsByProductId(productId);
+
+            log.info("필터링된 리뷰 목록 조회 완료: 필터링된 {}개, 전체 {}개", reviewPage.getTotalElements(), totalReviews);
+
+            return ReviewListResponse.of(reviewResponsePage, averageRating, totalReviews);
+            
+        } catch (IllegalArgumentException e) {
+            log.error("잘못된 필터 값: {}", e.getMessage());
+            throw new BusinessException(ErrorCode.INVALID_INPUT_VALUE, "잘못된 필터 값입니다: " + e.getMessage());
+        } catch (Exception e) {
+            log.error("필터링된 상품 리뷰 목록 조회 중 오류 발생: 상품ID={}, 에러={}", productId, e.getMessage(), e);
+            throw new RuntimeException("필터링된 리뷰 목록 조회에 실패했습니다: " + e.getMessage(), e);
         }
     }
 
