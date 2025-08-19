@@ -21,34 +21,36 @@ public class WebConfig implements WebMvcConfigurer {
                 .allowedMethods("*")
                 .allowedHeaders("*")
                 .allowCredentials(true);
-        
+
         // 정적 파일에 대한 CORS 설정
         registry.addMapping("/images/**")
-                .allowedOrigins("*")
+
+                .allowedOrigins("http://localhost:3000")
                 .allowedMethods("GET")
-                .allowedHeaders("*");
-        
+                .allowedHeaders("Origin", "X-Requested-With", "Content-Type", "Accept");
+
         registry.addMapping("/uploads/**")
-                .allowedOrigins("*")
+                .allowedOrigins("http://localhost:3000")
                 .allowedMethods("GET")
-                .allowedHeaders("*");
-                
+                .allowedHeaders("Origin", "X-Requested-With", "Content-Type", "Accept");
+
         registry.addMapping("/files/**")
-                .allowedOrigins("*")
+                .allowedOrigins("http://localhost:3000")
                 .allowedMethods("GET")
-                .allowedHeaders("*");
+                .allowedHeaders("Origin", "X-Requested-With", "Content-Type", "Accept");
+
     }
-    
+
     @Override
     public void addResourceHandlers(ResourceHandlerRegistry registry) {
         // uploads 디렉토리에 대한 정적 파일 서빙 설정
         registry.addResourceHandler("/uploads/**")
                 .addResourceLocations("file:uploads/");
-                
-        // images 디렉토리에 대한 정적 파일 서빙 설정  
+
+        // images 디렉토리에 대한 정적 파일 서빙 설정
         registry.addResourceHandler("/images/**")
                 .addResourceLocations("file:images/");
-                
+
         // files 디렉토리에 대한 정적 파일 서빙 설정
         registry.addResourceHandler("/files/**")
                 .addResourceLocations("file:files/");
