@@ -261,4 +261,157 @@ public class ReviewQueryRepositoryImpl implements ReviewQueryRepository {
         
         return count != null ? count : 0L;
     }
+
+    // ========== 리뷰 필터링 메서드 구현들 ==========
+
+    @Override
+    public Page<Review> findActiveReviewsByProductIdAndRating(Long productId, Integer rating, Pageable pageable) {
+        List<Review> reviews = queryFactory
+                .selectFrom(review)
+                .where(
+                        review.product.productId.eq(productId),
+                        review.status.eq(ReviewStatus.ACTIVE),
+                        review.isBlinded.isFalse(),
+                        review.rating.eq(rating)
+                )
+                .orderBy(review.createdAt.desc())
+                .offset(pageable.getOffset())
+                .limit(pageable.getPageSize())
+                .fetch();
+
+        Long total = queryFactory
+                .select(review.count())
+                .from(review)
+                .where(
+                        review.product.productId.eq(productId),
+                        review.status.eq(ReviewStatus.ACTIVE),
+                        review.isBlinded.isFalse(),
+                        review.rating.eq(rating)
+                )
+                .fetchOne();
+
+        return new PageImpl<>(reviews, pageable, total != null ? total : 0L);
+    }
+
+    @Override
+    public Page<Review> findActiveReviewsByProductIdAndSizeFit(Long productId, SizeFit sizeFit, Pageable pageable) {
+        List<Review> reviews = queryFactory
+                .selectFrom(review)
+                .where(
+                        review.product.productId.eq(productId),
+                        review.status.eq(ReviewStatus.ACTIVE),
+                        review.isBlinded.isFalse(),
+                        review.sizeFit.eq(sizeFit)
+                )
+                .orderBy(review.createdAt.desc())
+                .offset(pageable.getOffset())
+                .limit(pageable.getPageSize())
+                .fetch();
+
+        Long total = queryFactory
+                .select(review.count())
+                .from(review)
+                .where(
+                        review.product.productId.eq(productId),
+                        review.status.eq(ReviewStatus.ACTIVE),
+                        review.isBlinded.isFalse(),
+                        review.sizeFit.eq(sizeFit)
+                )
+                .fetchOne();
+
+        return new PageImpl<>(reviews, pageable, total != null ? total : 0L);
+    }
+
+    @Override
+    public Page<Review> findActiveReviewsByProductIdAndCushion(Long productId, Cushion cushion, Pageable pageable) {
+        List<Review> reviews = queryFactory
+                .selectFrom(review)
+                .where(
+                        review.product.productId.eq(productId),
+                        review.status.eq(ReviewStatus.ACTIVE),
+                        review.isBlinded.isFalse(),
+                        review.cushion.eq(cushion)
+                )
+                .orderBy(review.createdAt.desc())
+                .offset(pageable.getOffset())
+                .limit(pageable.getPageSize())
+                .fetch();
+
+        Long total = queryFactory
+                .select(review.count())
+                .from(review)
+                .where(
+                        review.product.productId.eq(productId),
+                        review.status.eq(ReviewStatus.ACTIVE),
+                        review.isBlinded.isFalse(),
+                        review.cushion.eq(cushion)
+                )
+                .fetchOne();
+
+        return new PageImpl<>(reviews, pageable, total != null ? total : 0L);
+    }
+
+    @Override
+    public Page<Review> findActiveReviewsByProductIdAndStability(Long productId, Stability stability, Pageable pageable) {
+        List<Review> reviews = queryFactory
+                .selectFrom(review)
+                .where(
+                        review.product.productId.eq(productId),
+                        review.status.eq(ReviewStatus.ACTIVE),
+                        review.isBlinded.isFalse(),
+                        review.stability.eq(stability)
+                )
+                .orderBy(review.createdAt.desc())
+                .offset(pageable.getOffset())
+                .limit(pageable.getPageSize())
+                .fetch();
+
+        Long total = queryFactory
+                .select(review.count())
+                .from(review)
+                .where(
+                        review.product.productId.eq(productId),
+                        review.status.eq(ReviewStatus.ACTIVE),
+                        review.isBlinded.isFalse(),
+                        review.stability.eq(stability)
+                )
+                .fetchOne();
+
+        return new PageImpl<>(reviews, pageable, total != null ? total : 0L);
+    }
+
+    @Override
+    public Page<Review> findActiveReviewsByProductIdWithFilters(Long productId, Integer rating, SizeFit sizeFit, Cushion cushion, Stability stability, Pageable pageable) {
+        List<Review> reviews = queryFactory
+                .selectFrom(review)
+                .where(
+                        review.product.productId.eq(productId),
+                        review.status.eq(ReviewStatus.ACTIVE),
+                        review.isBlinded.isFalse(),
+                        rating != null ? review.rating.eq(rating) : null,
+                        sizeFit != null ? review.sizeFit.eq(sizeFit) : null,
+                        cushion != null ? review.cushion.eq(cushion) : null,
+                        stability != null ? review.stability.eq(stability) : null
+                )
+                .orderBy(review.createdAt.desc())
+                .offset(pageable.getOffset())
+                .limit(pageable.getPageSize())
+                .fetch();
+
+        Long total = queryFactory
+                .select(review.count())
+                .from(review)
+                .where(
+                        review.product.productId.eq(productId),
+                        review.status.eq(ReviewStatus.ACTIVE),
+                        review.isBlinded.isFalse(),
+                        rating != null ? review.rating.eq(rating) : null,
+                        sizeFit != null ? review.sizeFit.eq(sizeFit) : null,
+                        cushion != null ? review.cushion.eq(cushion) : null,
+                        stability != null ? review.stability.eq(stability) : null
+                )
+                .fetchOne();
+
+        return new PageImpl<>(reviews, pageable, total != null ? total : 0L);
+    }
 }
