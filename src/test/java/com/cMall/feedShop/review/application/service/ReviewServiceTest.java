@@ -83,6 +83,9 @@ class ReviewServiceTest {
 
     @Mock
     private ReviewImageService reviewImageService;
+    
+    @Mock
+    private com.cMall.feedShop.review.domain.repository.ReviewImageRepository reviewImageRepository;
 
     @Mock
     private GcpStorageService gcpStorageService;
@@ -197,7 +200,7 @@ class ReviewServiceTest {
             // when & then
             assertThatThrownBy(() -> reviewService.createReview(createRequest, null))
                     .isInstanceOf(BusinessException.class)
-                    .hasMessageContaining("인증이 필요합니다");
+                    .hasMessageContaining("로그인이 필요합니다");
         }
     }
 
@@ -538,6 +541,164 @@ class ReviewServiceTest {
         given(securityContext.getAuthentication()).willReturn(authentication);
         given(authentication.isAuthenticated()).willReturn(true);
         given(authentication.getName()).willReturn("test@test.com");
-        given(authentication.getPrincipal()).willReturn("test@test.com");
+        given(authentication.getPrincipal()).willReturn("test@test.com"); // String으로 설정하면 getName()이 호출됨
+    }
+
+    // ========== 필터링 메서드 테스트들 ==========
+
+    @Test
+    @DisplayName("필터링된 리뷰 목록을 조회할 수 있다 - 평점 필터")
+    void getProductReviewsWithFilters_RatingFilter() {
+        // given
+        List<Review> reviews = List.of(testReview);
+        Page<Review> reviewPage = new PageImpl<>(reviews, PageRequest.of(0, 20), 1);
+        
+        given(reviewRepository.findActiveReviewsByProductIdWithFilters(
+                eq(1L), eq(5), isNull(), isNull(), isNull(), any()))
+                .willReturn(reviewPage);
+        given(reviewRepository.findAverageRatingByProductId(1L)).willReturn(4.5);
+        given(reviewRepository.countActiveReviewsByProductId(1L)).willReturn(10L);
+        given(reviewImageService.getReviewImages(1L)).willReturn(List.of());
+
+        // when
+        ReviewListResponse response = reviewService.getProductReviewsWithFilters(
+                1L, 0, 20, "latest", 5, null, null, null);
+
+        // then
+        assertThat(response.getReviews()).hasSize(1);
+        assertThat(response.getAverageRating()).isEqualTo(4.5);
+        assertThat(response.getTotalReviews()).isEqualTo(10L);
+        verify(reviewRepository).findActiveReviewsByProductIdWithFilters(
+                eq(1L), eq(5), isNull(), isNull(), isNull(), any());
+    }
+
+    @Test
+    @DisplayName("필터링된 리뷰 목록을 조회할 수 있다 - 3Element 필터")
+    void getProductReviewsWithFilters_3ElementFilter() {
+        // given
+        List<Review> reviews = List.of(testReview);
+        Page<Review> reviewPage = new PageImpl<>(reviews, PageRequest.of(0, 20), 1);
+        
+        given(reviewRepository.findActiveReviewsByProductIdWithFilters(
+                eq(1L), isNull(), eq(SizeFit.NORMAL), eq(Cushion.SOFT), eq(Stability.STABLE), any()))
+                .willReturn(reviewPage);
+        given(reviewRepository.findAverageRatingByProductId(1L)).willReturn(4.5);
+        given(reviewRepository.countActiveReviewsByProductId(1L)).willReturn(10L);
+        given(reviewImageService.getReviewImages(1L)).willReturn(List.of());
+
+        // when
+        ReviewListResponse response = reviewService.getProductReviewsWithFilters(
+                1L, 0, 20, "latest", null, "NORMAL", "SOFT", "STABLE");
+
+        // then
+        assertThat(response.getReviews()).hasSize(1);
+        verify(reviewRepository).findActiveReviewsByProductIdWithFilters(
+                eq(1L), isNull(), eq(SizeFit.NORMAL), eq(Cushion.SOFT), eq(Stability.STABLE), any());
+    }
+
+    @Test
+    @DisplayName("필터링된 리뷰 목록을 조회할 수 있다 - 복합 필터")
+    void getProductReviewsWithFilters_CombinedFilters() {
+        // given
+        List<Review> reviews = List.of(testReview);
+        Page<Review> reviewPage = new PageImpl<>(reviews, PageRequest.of(0, 20), 1);
+        
+        given(reviewRepository.findActiveReviewsByProductIdWithFilters(
+                eq(1L), eq(5), eq(SizeFit.NORMAL), eq(Cushion.SOFT), isNull(), any()))
+                .willReturn(reviewPage);
+        given(reviewRepository.findAverageRatingByProductId(1L)).willReturn(4.5);
+        given(reviewRepository.countActiveReviewsByProductId(1L)).willReturn(10L);
+        given(reviewImageService.getReviewImages(1L)).willReturn(List.of());
+
+        // when
+        ReviewListResponse response = reviewService.getProductReviewsWithFilters(
+                1L, 0, 20, "latest", 5, "NORMAL", "SOFT", null);
+
+        // then
+        assertThat(response.getReviews()).hasSize(1);
+        verify(reviewRepository).findActiveReviewsByProductIdWithFilters(
+                eq(1L), eq(5), eq(SizeFit.NORMAL), eq(Cushion.SOFT), isNull(), any());
+    }
+
+    @Test
+    @DisplayName("필터링된 리뷰 목록을 조회할 수 있다 - 모든 필터가 null")
+    void getProductReviewsWithFilters_NoFilters() {
+        // given
+        List<Review> reviews = List.of(testReview);
+        Page<Review> reviewPage = new PageImpl<>(reviews, PageRequest.of(0, 20), 1);
+        
+        given(reviewRepository.findActiveReviewsByProductIdWithFilters(
+                eq(1L), isNull(), isNull(), isNull(), isNull(), any()))
+                .willReturn(reviewPage);
+        given(reviewRepository.findAverageRatingByProductId(1L)).willReturn(4.5);
+        given(reviewRepository.countActiveReviewsByProductId(1L)).willReturn(10L);
+        given(reviewImageService.getReviewImages(1L)).willReturn(List.of());
+
+        // when
+        ReviewListResponse response = reviewService.getProductReviewsWithFilters(
+                1L, 0, 20, "latest", null, null, null, null);
+
+        // then
+        assertThat(response.getReviews()).hasSize(1);
+        verify(reviewRepository).findActiveReviewsByProductIdWithFilters(
+                eq(1L), isNull(), isNull(), isNull(), isNull(), any());
+    }
+
+    @Test
+    @DisplayName("잘못된 enum 값으로 필터링 시 예외가 발생한다")
+    void getProductReviewsWithFilters_InvalidEnumValue() {
+        // when & then
+        assertThatThrownBy(() -> 
+                reviewService.getProductReviewsWithFilters(
+                        1L, 0, 20, "latest", null, "INVALID_SIZE", null, null))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("잘못된 필터 값입니다");
+    }
+
+    @Test
+    @DisplayName("페이지 크기가 범위를 벗어나면 기본값으로 설정된다")
+    void getProductReviewsWithFilters_InvalidPageSize() {
+        // given
+        List<Review> reviews = List.of(testReview);
+        Page<Review> reviewPage = new PageImpl<>(reviews, PageRequest.of(0, 20), 1);
+        
+        given(reviewRepository.findActiveReviewsByProductIdWithFilters(
+                eq(1L), isNull(), isNull(), isNull(), isNull(), any()))
+                .willReturn(reviewPage);
+        given(reviewRepository.findAverageRatingByProductId(1L)).willReturn(4.5);
+        given(reviewRepository.countActiveReviewsByProductId(1L)).willReturn(10L);
+        given(reviewImageService.getReviewImages(1L)).willReturn(List.of());
+
+        // when - 잘못된 페이지 크기 (0, 200)
+        ReviewListResponse response1 = reviewService.getProductReviewsWithFilters(
+                1L, 0, 0, "latest", null, null, null, null);
+        ReviewListResponse response2 = reviewService.getProductReviewsWithFilters(
+                1L, 0, 200, "latest", null, null, null, null);
+
+        // then - 기본값 20으로 설정됨
+        assertThat(response1.getSize()).isEqualTo(20);
+        assertThat(response2.getSize()).isEqualTo(20);
+    }
+
+    @Test
+    @DisplayName("음수 페이지 번호는 0으로 설정된다")
+    void getProductReviewsWithFilters_NegativePageNumber() {
+        // given
+        List<Review> reviews = List.of(testReview);
+        Page<Review> reviewPage = new PageImpl<>(reviews, PageRequest.of(0, 20), 1);
+        
+        given(reviewRepository.findActiveReviewsByProductIdWithFilters(
+                eq(1L), isNull(), isNull(), isNull(), isNull(), any()))
+                .willReturn(reviewPage);
+        given(reviewRepository.findAverageRatingByProductId(1L)).willReturn(4.5);
+        given(reviewRepository.countActiveReviewsByProductId(1L)).willReturn(10L);
+        given(reviewImageService.getReviewImages(1L)).willReturn(List.of());
+
+        // when
+        ReviewListResponse response = reviewService.getProductReviewsWithFilters(
+                1L, -5, 20, "latest", null, null, null, null);
+
+        // then
+        assertThat(response.getNumber()).isEqualTo(0);
     }
 }
