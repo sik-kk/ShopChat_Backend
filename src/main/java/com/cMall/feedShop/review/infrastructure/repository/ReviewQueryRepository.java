@@ -65,6 +65,11 @@ public interface ReviewQueryRepository {
      * 사용자별 삭제된 리뷰 개수
      */
     Long countDeletedReviewsByUserId(Long userId);
+    
+    /**
+     * 사용자별 전체 리뷰 개수 (활성 + 삭제)
+     */
+    Long countByUserId(Long userId);
 
     // ========== 리뷰 필터링 메서드들 ==========
     

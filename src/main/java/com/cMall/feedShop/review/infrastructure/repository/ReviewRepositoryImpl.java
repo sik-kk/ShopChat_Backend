@@ -106,6 +106,11 @@ public class ReviewRepositoryImpl implements ReviewRepository {
         return reviewQueryRepository.countDeletedReviewsByUserId(userId);
     }
 
+    @Override
+    public Long countByUserId(Long userId) {
+        return reviewQueryRepository.countByUserId(userId);
+    }
+
     // ========== 필터링 메서드 구현들 ==========
 
     @Override
