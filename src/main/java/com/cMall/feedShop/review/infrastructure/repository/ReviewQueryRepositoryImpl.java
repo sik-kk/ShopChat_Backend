@@ -275,6 +275,17 @@ public class ReviewQueryRepositoryImpl implements ReviewQueryRepository {
         return new PageImpl<>(reviews, pageable, total);
     }
 
+    @Override
+    public Long countByUserId(Long userId) {
+        Long count = queryFactory
+                .select(review.count())
+                .from(review)
+                .where(review.user.id.eq(userId))
+                .fetchOne();
+        
+        return count != null ? count : 0L;
+    }
+
     // ========== 리뷰 필터링 메서드 구현들 ==========
 
     @Override
