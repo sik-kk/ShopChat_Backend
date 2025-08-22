@@ -132,4 +132,9 @@ public class ReviewRepositoryImpl implements ReviewRepository {
     public Page<Review> findActiveReviewsByProductIdWithFilters(Long productId, Integer rating, SizeFit sizeFit, Cushion cushion, Stability stability, Pageable pageable) {
         return reviewQueryRepository.findActiveReviewsByProductIdWithFilters(productId, rating, sizeFit, cushion, stability, pageable);
     }
+
+    @Override
+    public Long countByUserId(Long userId) {
+        return reviewQueryRepository.countByUserId(userId);
+    }
 }
