@@ -11,6 +11,13 @@ import com.cMall.feedShop.review.domain.exception.ReviewAccessDeniedException;
 import com.cMall.feedShop.review.domain.exception.ReviewNotFoundException;
 import com.cMall.feedShop.review.domain.repository.ReviewImageRepository;
 import com.cMall.feedShop.review.domain.repository.ReviewRepository;
+import com.cMall.feedShop.product.domain.model.Product;
+import com.cMall.feedShop.product.domain.model.Category;
+import com.cMall.feedShop.product.domain.enums.CategoryType;
+import com.cMall.feedShop.store.domain.model.Store;
+import com.cMall.feedShop.review.domain.enums.SizeFit;
+import com.cMall.feedShop.review.domain.enums.Cushion;
+import com.cMall.feedShop.review.domain.enums.Stability;
 import com.cMall.feedShop.user.domain.enums.UserRole;
 import com.cMall.feedShop.user.domain.model.User;
 import com.cMall.feedShop.user.domain.repository.UserRepository;
@@ -27,6 +34,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.test.context.ActiveProfiles;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.List;
@@ -74,16 +82,45 @@ class ReviewDeleteServiceTest {
     private User testUser;
     private Review testReview;
     private ReviewImage testReviewImage;
+    private Product testProduct;
 
     @BeforeEach
     void setUp() {
         testUser = new User(1L, "testuser", "password", "test@example.com", UserRole.USER);
         
+        Store testStore = Store.builder()
+                .storeName("테스트 스토어")
+                .sellerId(1L)
+                .build();
+        
+        Category testCategory = new Category(CategoryType.SNEAKERS, "운동화");
+        
+        testProduct = Product.builder()
+                .name("테스트 신발")
+                .price(BigDecimal.valueOf(100000))
+                .store(testStore)
+                .category(testCategory)
+                .description("테스트 설명")
+                .build();
+        
+        // Reflection을 사용하여 productId 설정
+        try {
+            java.lang.reflect.Field productIdField = Product.class.getDeclaredField("productId");
+            productIdField.setAccessible(true);
+            productIdField.set(testProduct, 1L);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to set productId", e);
+        }
+        
         testReview = Review.builder()
                 .title("테스트 리뷰")
                 .rating(5)
+                .sizeFit(SizeFit.NORMAL)
+                .cushion(Cushion.SOFT)
+                .stability(Stability.STABLE)
                 .content("테스트 내용")
                 .user(testUser)
+                .product(testProduct)
                 .build();
         
         // Reflection을 사용하여 reviewId 설정
@@ -145,7 +182,7 @@ class ReviewDeleteServiceTest {
         ReviewDeleteResponse response = reviewDeleteService.deleteReview(1L);
 
         // then
-        assertThat(response.getReviewId()).isEqualTo(1L);
+        assertThat(response.getDeletedReviewId()).isEqualTo(1L);
         assertThat(response.isImagesDeleted()).isTrue();
         assertThat(response.getDeletedImageCount()).isEqualTo(1);
         
