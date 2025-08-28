@@ -16,6 +16,10 @@ import com.cMall.feedShop.review.domain.exception.ReviewAccessDeniedException;
 import com.cMall.feedShop.review.domain.exception.ReviewNotFoundException;
 import com.cMall.feedShop.review.domain.repository.ReviewImageRepository;
 import com.cMall.feedShop.review.domain.repository.ReviewRepository;
+import com.cMall.feedShop.product.domain.model.Product;
+import com.cMall.feedShop.product.domain.model.Category;
+import com.cMall.feedShop.product.domain.enums.CategoryType;
+import com.cMall.feedShop.store.domain.model.Store;
 import com.cMall.feedShop.user.domain.enums.UserRole;
 import com.cMall.feedShop.user.domain.model.User;
 import com.cMall.feedShop.user.domain.repository.UserRepository;
@@ -34,6 +38,7 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
@@ -80,20 +85,45 @@ class ReviewUpdateServiceTest {
     private ReviewUpdateRequest updateRequest;
     private User testUser;
     private Review testReview;
+    private Product testProduct;
 
     @BeforeEach
     void setUp() {
         updateRequest = ReviewUpdateRequest.builder()
                 .title("수정된 제목")
                 .rating(4)
-                .sizeFit(SizeFit.LARGE)
-                .cushion(Cushion.NORMAL)
+                .sizeFit(SizeFit.BIG)
+                .cushion(Cushion.MEDIUM)
                 .stability(Stability.STABLE)
                 .content("수정된 내용입니다.")
                 .deleteImageIds(List.of(1L, 2L))
                 .build();
                 
         testUser = new User(1L, "testuser", "password", "test@example.com", UserRole.USER);
+        
+        Store testStore = Store.builder()
+                .storeName("테스트 스토어")
+                .sellerId(1L)
+                .build();
+        
+        Category testCategory = new Category(CategoryType.SNEAKERS, "운동화");
+        
+        testProduct = Product.builder()
+                .name("테스트 신발")
+                .price(BigDecimal.valueOf(100000))
+                .store(testStore)
+                .category(testCategory)
+                .description("테스트 설명")
+                .build();
+        
+        // Reflection을 사용하여 productId 설정
+        try {
+            java.lang.reflect.Field productIdField = Product.class.getDeclaredField("productId");
+            productIdField.setAccessible(true);
+            productIdField.set(testProduct, 1L);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to set productId", e);
+        }
         
         testReview = Review.builder()
                 .title("원본 제목")
@@ -103,6 +133,7 @@ class ReviewUpdateServiceTest {
                 .stability(Stability.STABLE)
                 .content("원본 내용")
                 .user(testUser)
+                .product(testProduct)
                 .build();
         
         // Reflection을 사용하여 reviewId 설정
@@ -151,7 +182,13 @@ class ReviewUpdateServiceTest {
         );
         
         List<UploadResult> uploadResults = Arrays.asList(
-                new UploadResult("image1.jpg", "/uploads/reviews/image1.jpg", "image/jpeg", 1024L)
+                UploadResult.builder()
+                        .originalFilename("image1.jpg")
+                        .storedFilename("stored_image1.jpg")
+                        .filePath("/uploads/reviews/image1.jpg")
+                        .fileSize(1024L)
+                        .contentType("image/jpeg")
+                        .build()
         );
         
         List<Long> deletedImageIds = Arrays.asList(1L, 2L);
