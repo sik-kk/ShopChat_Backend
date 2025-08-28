@@ -63,7 +63,7 @@ class ReviewDeleteServiceTest {
         given(reviewRepository.findAverageRatingByProductId(productId)).willReturn(averageRating);
 
         // When
-        ReviewService.ReviewStatsResponse response = reviewService.getProductReviewStats(productId);
+        ReviewReadService.ReviewStatsResponse response = reviewService.getProductReviewStats(productId);
 
         // Then
         assertThat(response).isNotNull();
@@ -106,7 +106,7 @@ class ReviewDeleteServiceTest {
         given(reviewRepository.findDeletedReviewsBetween(startDate, endDate)).willReturn(deletedReviews);
 
         // When
-        ReviewService.PeriodReviewStatsResponse response = reviewService.getDeletedReviewStatsBetween(startDate, endDate);
+        ReviewReadService.PeriodReviewStatsResponse response = reviewService.getDeletedReviewStatsBetween(startDate, endDate);
 
         // Then
         assertThat(response).isNotNull();
