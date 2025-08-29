@@ -90,36 +90,21 @@ public class ReviewUserController {
             @Parameter(description = "리뷰 작성 요청 정보", required = true) @Valid @RequestBody ReviewCreateRequest request,
             @Parameter(hidden = true) @AuthenticationPrincipal User user) {
 
-        log.error("=== 리뷰 작성 디버깅 시작 ===");
-        log.error("User: {}", user != null ? user.getEmail() : "NULL");
-        log.error("ProductId: {}", request.getProductId());
-        log.error("Rating: {}", request.getRating());
-        log.error("Content: {}", request.getContent());
+        log.info("JSON 리뷰 작성 API 호출: productId={}, rating={}", request.getProductId(), request.getRating());
         
-        try {
-            log.info("JSON 리뷰 작성 API 호출: productId={}, rating={}", request.getProductId(), request.getRating());
-            
-            // 1. 리뷰 작성 (트랜잭션 포함)
-            log.error("reviewService.createReview 호출 전");
-            ReviewCreateResponse baseResponse = reviewService.createReview(request, null);
-            log.error("reviewService.createReview 호출 후 성공");
-            
-            // 2. 트랜잭션 완료 후 별도로 포인트 조회
-            log.error("포인트 조회 시작");
-            Integer currentPoints = getCurrentPointsSafely(user);
-            log.error("포인트 조회 완료: {}", currentPoints);
-            
-            // 3. 최종 응답 생성
-            ReviewCreateResponse finalResponse = baseResponse.withCurrentPoints(currentPoints);
-            
-            log.info("JSON 리뷰 작성 API 완료: reviewId={}, pointsEarned={}, currentPoints={}", 
-                    finalResponse.getReviewId(), finalResponse.getPointsEarned(), finalResponse.getCurrentPoints());
-            
-            return ApiResponse.success(finalResponse);
-        } catch (Exception e) {
-            log.error("리뷰 작성 실패: {}", e.getMessage(), e);
-            throw e;
-        }
+        // 1. 리뷰 작성 (트랜잭션 포함)
+        ReviewCreateResponse baseResponse = reviewService.createReview(request, null);
+        
+        // 2. 트랜잭션 완료 후 별도로 포인트 조회
+        Integer currentPoints = getCurrentPointsSafely(user);
+        
+        // 3. 최종 응답 생성
+        ReviewCreateResponse finalResponse = baseResponse.withCurrentPoints(currentPoints);
+        
+        log.info("JSON 리뷰 작성 API 완료: reviewId={}, pointsEarned={}, currentPoints={}", 
+                finalResponse.getReviewId(), finalResponse.getPointsEarned(), finalResponse.getCurrentPoints());
+        
+        return ApiResponse.success(finalResponse);
     }
 
     /**
@@ -156,7 +141,7 @@ public class ReviewUserController {
             @Parameter(description = "리뷰 제목", required = true) @Valid @NotBlank(message = "리뷰 제목은 필수입니다.") @RequestParam String title,
             @Parameter(description = "평점 (1-5점)", required = true) @Valid @NotNull(message = "평점은 필수입니다.") @Min(1) @Max(5) @RequestParam Integer rating,
             @Parameter(description = "리뷰 내용", required = true) @Valid @NotBlank(message = "리뷰 내용은 필수입니다.") @RequestParam String content,
-            @Parameter(description = "사이즈 착용감 (SMALL: 작음, NORMAL: 적당, LARGE: 큼)", required = true) @Valid @NotBlank(message = "사이즈 착용감은 필수입니다.") @RequestParam String sizeFit,
+            @Parameter(description = "사이즈 착용감 (VERY_SMALL: 매우 작음, SMALL: 작음, NORMAL: 적당함, BIG: 큼, VERY_BIG: 매우 큼)", required = true) @Valid @NotBlank(message = "사이즈 착용감은 필수입니다.") @RequestParam String sizeFit,
             @Parameter(description = "쿠션감 (HARD: 딱딱, MODERATE: 보통, SOFT: 부드러움, VERY_SOFT: 매우 부드러움)", required = true) @Valid @NotBlank(message = "쿠션감은 필수입니다.") @RequestParam String cushion,
             @Parameter(description = "안정성 (UNSTABLE: 불안정, MODERATE: 보통, STABLE: 안정적)", required = true) @Valid @NotBlank(message = "안정성은 필수입니다.") @RequestParam String stability,
             @Parameter(description = "리뷰 이미지 파일들 (선택사항, 최대 5개)") @RequestPart(value = "images", required = false) List<MultipartFile> images,
